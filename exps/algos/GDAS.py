@@ -1316,9 +1316,6 @@ def main(xargs):
 
     if TA:
         student_model = create_cnn_model(student, train_data, use_cuda=1)
-        if student_checkpoint:
-            student_model = load_checkpoint(student_model, student_checkpoint)
-
         if 'resnet' in student:
             optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
         elif 'plane' in student:
@@ -1335,6 +1332,12 @@ def main(xargs):
         elif 'mobilenet' in xargs.student_model:
             optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                          weight_decay=0)
+        if student_checkpoint:
+            student_model = load_checkpoint(student_model, student_checkpoint)
+            checkpoint = torch.load(student_checkpoint)
+            optimizer.load_state_dict(checkpoint['optimizer_dict'])
+
+
         # Student_optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
         # Student_optimizer = torch.optim.Adam(student_model.parameters(), lr=0.025, betas=(0.5, 0.999), weight_decay=1e-4)
 
@@ -1350,9 +1353,9 @@ def main(xargs):
         for epoch in range(start_epoch, total_epoch):
             w_scheduler.update(epoch, 0.0)
             need_time = "Time Left: {:}".format(
-                convert_secs2time(epoch_time.val * (total_epoch * 2 - epoch_online - epoch), True)
+                convert_secs2time(epoch_time.val * (total_epoch- epoch), True)
             )
-            epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch * 2 - epoch_online)
+            epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
             search_model.set_tau(
                 xargs.tau_max - (xargs.tau_max - xargs.tau_min) * epoch / (total_epoch - 1)
             )
@@ -1363,7 +1366,7 @@ def main(xargs):
             )
 
             if 'resnet' in TA:
-                adjust_learning_rate(w_optimizer, epoch, total_epoch * 2 - epoch_online)
+                adjust_learning_rate(w_optimizer, epoch, total_epoch)
 
             if epoch < total_epoch-epoch_online:
                 training_mode = 0
@@ -1487,24 +1490,24 @@ def main(xargs):
             epoch_time.update(time.time() - start_time)
             start_time = time.time()
 
-
-        student_model = create_cnn_model(student, train_data, use_cuda=1)
-        if 'resnet' in student:
-            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-        elif 'plane' in student:
-            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-        elif 'vgg' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=1e-4)
-        elif 'alexnet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-        elif 'lenet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-        elif 'googlenet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                         weight_decay=0)
-        elif 'mobilenet' in xargs.student_model:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                         weight_decay=0)
+        if TA!='GDAS':
+            student_model = create_cnn_model(student, train_data, use_cuda=1)
+            if 'resnet' in student:
+                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+            elif 'plane' in student:
+                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+            elif 'vgg' in student:
+                optimizer = torch.optim.Adam(student_model.parameters(), lr=1e-4)
+            elif 'alexnet' in student:
+                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
+            elif 'lenet' in student:
+                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
+            elif 'googlenet' in student:
+                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
+                                             weight_decay=0)
+            elif 'mobilenet' in xargs.student_model:
+                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
+                                             weight_decay=0)
         student_best = -1
         for epoch in range(start_epoch, total_epoch):
             student_loss, student_top1, student_top5 = train_student(search_loader,
