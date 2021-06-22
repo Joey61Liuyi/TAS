@@ -13,6 +13,7 @@ import math
 import torch.nn.functional as F
 import warnings
 import os
+import torch.nn.init as init
 warnings.filterwarnings("ignore")
 
 lib_dir = (Path(__file__).parent / ".." / ".." / "lib").resolve()
@@ -1168,6 +1169,176 @@ def main(xargs):
             out = self.linear(out)
             return out
 
+    class fire(nn.Module):
+        def __init__(self, inplanes, squeeze_planes, expand_planes):
+            super(fire, self).__init__()
+            self.conv1 = nn.Conv2d(inplanes, squeeze_planes, kernel_size=1, stride=1)
+            self.bn1 = nn.BatchNorm2d(squeeze_planes)
+            self.relu1 = nn.ReLU(inplace=True)
+            self.conv2 = nn.Conv2d(squeeze_planes, expand_planes, kernel_size=1, stride=1)
+            self.bn2 = nn.BatchNorm2d(expand_planes)
+            self.conv3 = nn.Conv2d(squeeze_planes, expand_planes, kernel_size=3, stride=1, padding=1)
+            self.bn3 = nn.BatchNorm2d(expand_planes)
+            self.relu2 = nn.ReLU(inplace=True)
+
+            # using MSR initilization
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
+                    m.weight.data.normal_(0, math.sqrt(2. / n))
+
+        def forward(self, x):
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu1(x)
+            out1 = self.conv2(x)
+            out1 = self.bn2(out1)
+            out2 = self.conv3(x)
+            out2 = self.bn3(out2)
+            out = torch.cat([out1, out2], 1)
+            out = self.relu2(out)
+            return out
+
+    class SqueezeNet(nn.Module):
+        def __init__(self):
+            super(SqueezeNet, self).__init__()
+            self.conv1 = nn.Conv2d(3, 96, kernel_size=3, stride=1, padding=1)  # 32
+            self.bn1 = nn.BatchNorm2d(96)
+            self.relu = nn.ReLU(inplace=True)
+            self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)  # 16
+            self.fire2 = fire(96, 16, 64)
+            self.fire3 = fire(128, 16, 64)
+            self.fire4 = fire(128, 32, 128)
+            self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)  # 8
+            self.fire5 = fire(256, 32, 128)
+            self.fire6 = fire(256, 48, 192)
+            self.fire7 = fire(384, 48, 192)
+            self.fire8 = fire(384, 64, 256)
+            self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)  # 4
+            self.fire9 = fire(512, 64, 256)
+            self.conv2 = nn.Conv2d(512, 10, kernel_size=1, stride=1)
+            self.avg_pool = nn.AvgPool2d(kernel_size=4, stride=4)
+            self.softmax = nn.LogSoftmax(dim=1)
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    n = m.kernel_size[0] * m.kernel_size[1] * m.in_channels
+                    m.weight.data.normal_(0, math.sqrt(2. / n))
+                elif isinstance(m, nn.BatchNorm2d):
+                    m.weight.data.fill_(1)
+                    m.bias.data.zero_()
+
+        def forward(self, x):
+            x = self.conv1(x)
+            x = self.bn1(x)
+            x = self.relu(x)
+            x = self.maxpool1(x)
+            x = self.fire2(x)
+            x = self.fire3(x)
+            x = self.fire4(x)
+            x = self.maxpool2(x)
+            x = self.fire5(x)
+            x = self.fire6(x)
+            x = self.fire7(x)
+            x = self.fire8(x)
+            x = self.maxpool3(x)
+            x = self.fire9(x)
+            x = self.conv2(x)
+            x = self.avg_pool(x)
+            x = x.view(x.size(0), -1)
+            x = self.softmax(x)
+            return x
+
+    class ShuffleBlock(nn.Module):
+        def __init__(self, groups):
+            super(ShuffleBlock, self).__init__()
+            self.groups = groups
+
+        def forward(self, x):
+            '''Channel shuffle: [N,C,H,W] -> [N,g,C/g,H,W] -> [N,C/g,g,H,w] -> [N,C,H,W]'''
+            N, C, H, W = x.size()
+            g = self.groups
+            return x.view(N, g, C // g, H, W).permute(0, 2, 1, 3, 4).reshape(N, C, H, W)
+
+    class Bottleneck(nn.Module):
+        def __init__(self, in_planes, out_planes, stride, groups):
+            super(Bottleneck, self).__init__()
+            self.stride = stride
+
+            mid_planes = out_planes // 4
+            g = 1 if in_planes == 24 else groups
+            self.conv1 = nn.Conv2d(in_planes, mid_planes, kernel_size=1, groups=g, bias=False)
+            self.bn1 = nn.BatchNorm2d(mid_planes)
+            self.shuffle1 = ShuffleBlock(groups=g)
+            self.conv2 = nn.Conv2d(mid_planes, mid_planes, kernel_size=3, stride=stride, padding=1, groups=mid_planes, bias=False)
+            self.bn2 = nn.BatchNorm2d(mid_planes)
+            self.conv3 = nn.Conv2d(mid_planes, out_planes, kernel_size=1, groups=groups, bias=False)
+            self.bn3 = nn.BatchNorm2d(out_planes)
+
+            self.shortcut = nn.Sequential()
+            if stride == 2:
+                self.shortcut = nn.Sequential(nn.AvgPool2d(3, stride=2, padding=1))
+
+        def forward(self, x):
+            out = F.relu(self.bn1(self.conv1(x)))
+            out = self.shuffle1(out)
+            out = F.relu(self.bn2(self.conv2(out)))
+            out = self.bn3(self.conv3(out))
+            res = self.shortcut(x)
+            out = F.relu(torch.cat([out, res], 1)) if self.stride == 2 else F.relu(out + res)
+            return out
+
+    class ShuffleNet(nn.Module):
+        def __init__(self, cfg):
+            super(ShuffleNet, self).__init__()
+            out_planes = cfg['out_planes']
+            num_blocks = cfg['num_blocks']
+            groups = cfg['groups']
+
+            self.conv1 = nn.Conv2d(3, 24, kernel_size=1, bias=False)
+            self.bn1 = nn.BatchNorm2d(24)
+            self.in_planes = 24
+            self.layer1 = self._make_layer(out_planes[0], num_blocks[0], groups)
+            self.layer2 = self._make_layer(out_planes[1], num_blocks[1], groups)
+            self.layer3 = self._make_layer(out_planes[2], num_blocks[2], groups)
+            self.linear = nn.Linear(out_planes[2], 10)
+
+        def _make_layer(self, out_planes, num_blocks, groups):
+            layers = []
+            for i in range(num_blocks):
+                stride = 2 if i == 0 else 1
+                cat_planes = self.in_planes if i == 0 else 0
+                layers.append(Bottleneck(self.in_planes, out_planes - cat_planes, stride=stride, groups=groups))
+                self.in_planes = out_planes
+            return nn.Sequential(*layers)
+
+        def forward(self, x):
+            out = F.relu(self.bn1(self.conv1(x)))
+            out = self.layer1(out)
+            out = self.layer2(out)
+            out = self.layer3(out)
+            out = F.avg_pool2d(out, 4)
+            out = out.view(out.size(0), -1)
+            out = self.linear(out)
+            return out
+
+    def ShuffleNetG2():
+        cfg = {
+            'out_planes': [200, 400, 800],
+            'num_blocks': [4, 8, 4],
+            'groups': 2
+        }
+        return ShuffleNet(cfg)
+
+    def ShuffleNetG3():
+        cfg = {
+            'out_planes': [240, 480, 960],
+            'num_blocks': [4, 8, 4],
+            'groups': 3
+        }
+        return ShuffleNet(cfg)
+
+
+
 
     resnet_book = {
         '8': resnet8_cifar,
@@ -1233,6 +1404,10 @@ def main(xargs):
             return 'googlenet'
         elif name.startswith('mobilenet'):
             return 'mobilenet'
+        elif name.startswith('squeezenet'):
+            return 'squeezenet'
+        elif name.startswith('shufflenet'):
+            return 'shufflenet'
 
 
     def create_cnn_model(name, dataset="cifar100", use_cuda=False):
@@ -1270,6 +1445,16 @@ def main(xargs):
         elif is_resnet(name) == 'mobilenet':
             mobilenet_model = MobileNet()
             model = mobilenet_model
+        elif is_resnet(name) == 'squeezenet':
+            squeezenet_model = SqueezeNet()
+            model = squeezenet_model
+        elif is_resnet(name) == 'shufflenet':
+            shufflenet_type = name[10:]
+            if shufflenet_type == 'g2' or shufflenet_type == 'G2':
+                shufflenet_model = ShuffleNetG2()
+            else:
+                shufflenet_model = ShuffleNetG3()
+            model = shufflenet_model
 
 
 
@@ -1311,6 +1496,10 @@ def main(xargs):
             optimizer = torch.optim.Adam(teacher_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
         elif 'mobilenet' in xargs.teacher_model:
             optimizer = torch.optim.Adam(teacher_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+        elif 'squeezenet' in xargs.teacher_model:
+            optimizer = torch.optim.SGD(teacher_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+        elif 'shufflenet' in xargs.teacher_model:
+            optimizer = torch.optim.SGD(teacher_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
         teacher_model = train_teacher(search_loader, teacher_model, criterion, optimizer, logger, total_epoch, xargs.teacher_model)
 
 
@@ -1329,9 +1518,13 @@ def main(xargs):
         elif 'googlenet' in student:
             optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                          weight_decay=0)
-        elif 'mobilenet' in xargs.student_model:
+        elif 'mobilenet' in student:
             optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                          weight_decay=0)
+        elif 'squeezenet' in student:
+            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+        elif 'shufflenet' in student:
+            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
         if student_checkpoint:
             student_model = load_checkpoint(student_model, student_checkpoint)
             checkpoint = torch.load(student_checkpoint)
@@ -1505,9 +1698,13 @@ def main(xargs):
             elif 'googlenet' in student:
                 optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                              weight_decay=0)
-            elif 'mobilenet' in xargs.student_model:
+            elif 'mobilenet' in student:
                 optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                              weight_decay=0)
+            elif 'squeezenet' in student:
+                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+            elif 'shufflenet' in student:
+                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
         student_best = -1
         for epoch in range(start_epoch, total_epoch):
             student_loss, student_top1, student_top5 = train_student(search_loader,
@@ -1566,9 +1763,13 @@ def main(xargs):
             elif 'googlenet' in student:
                 optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                              weight_decay=0)
-            elif 'mobilenet' in xargs.student_model:
+            elif 'mobilenet' in student:
                 optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                              weight_decay=0)
+            elif 'squeezenet' in student:
+                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+            elif 'shufflenet' in student:
+                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
             student_best = -1
             for epoch in range(start_epoch, total_epoch):
@@ -1667,13 +1868,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="resnet110", type=str, help="type of teacher mode")
-    parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
-    parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='Teacher_model_resnet110_90.82%_06-14,15.pth.tar', type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default='Teacher_model_lenet_66.86%_06-21,03.pth.tar', type=str,
+    parser.add_argument("--teacher_model", default="shufflenetg2", type=str, help="type of teacher mode")
+    parser.add_argument("--TA", default=None, type=str, help="type of TA")
+    parser.add_argument("--student_model", default=None,
+                        type=str, help="type of student mode")
+    parser.add_argument("--teacher_checkpoint", default=None, type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default=None, type=str,
                         help="student mode's check point")
-    parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
+    parser.add_argument("--epoch_online", default=0, type=int, help="online training of TA and student")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
