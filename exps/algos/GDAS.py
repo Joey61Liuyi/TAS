@@ -11,9 +11,9 @@ import numpy as np
 import torch.nn as nn
 import math
 import torch.nn.functional as F
-import warnings
 import os
 import torch.nn.init as init
+import warnings
 warnings.filterwarnings("ignore")
 
 lib_dir = (Path(__file__).parent / ".." / ".." / "lib").resolve()
@@ -1868,14 +1868,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="shufflenetg2", type=str, help="type of teacher mode")
-    parser.add_argument("--TA", default=None, type=str, help="type of TA")
-    parser.add_argument("--student_model", default=None,
-                        type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default=None, type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default=None, type=str,
+    parser.add_argument("--teacher_model", default="resnet110", type=str, help="type of teacher mode")
+    parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
+    parser.add_argument("--student_model", default='alexnet', type=str, help="type of student mode")
+    parser.add_argument("--teacher_checkpoint", default='Teacher_model_resnet110_90.82%_06-14,15.pth.tar', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='Teacher_model_alexnet_81.30%_06-17,14.pth.tar', type=str,
                         help="student mode's check point")
-    parser.add_argument("--epoch_online", default=0, type=int, help="online training of TA and student")
+    parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)

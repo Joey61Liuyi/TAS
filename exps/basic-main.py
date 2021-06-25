@@ -7,6 +7,8 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 from copy import deepcopy
 from pathlib import Path
+import warnings
+warnings.filterwarnings("ignore")
 
 lib_dir = (Path(__file__).parent / ".." / "lib").resolve()
 if str(lib_dir) not in sys.path:
@@ -286,4 +288,19 @@ def main(args):
 
 if __name__ == "__main__":
     args = obtain_args()
+    args.dataset = 'cifar10'
+    args.data_path = '../data'
+    args.model_source = 'autodl-searched'
+    args.model_config = '../configs/archs/NAS-CIFAR-none.config'
+    args.optim_config = '../configs/opts/NAS-CIFAR.config'
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'
+    args.procedure = 'basic'
+    args.save_dir = '/output/nas-infer/cifar10-BS96-gdas_serached'
+    args.cutout_length = 16
+    args.batch_size = 48
+    args.rand_seed = 61
+    args.workers = 4
+    args.eval_frequency = 1
+    args.print_freq = 500
+    args.print_freq_eval = 1000
     main(args)

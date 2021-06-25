@@ -40,5 +40,5 @@ def obtain_basic_args():
 
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)
-    assert args.save_dir is not None, "save-path argument can not be None"
+    # assert args.save_dir is not None, "save-path argument can not be None"
     return args

@@ -4,16 +4,16 @@ import numpy as np
 
 
 def count_parameters_in_MB(model):
-    return count_parameters(model, "mb")
+    return count_parameters(model, unit="mb")
 
 
 def count_parameters(model_or_parameters, unit="mb"):
     if isinstance(model_or_parameters, nn.Module):
         counts = sum(np.prod(v.size()) for v in model_or_parameters.parameters())
-    elif isinstance(models_or_parameters, nn.Parameter):
-        counts = models_or_parameters.numel()
-    elif isinstance(models_or_parameters, (list, tuple)):
-        counts = sum(count_parameters(x, None) for x in models_or_parameters)
+    elif isinstance(model_or_parameters, nn.Parameter):
+        counts = model_or_parameters.numel()
+    elif isinstance(model_or_parameters, (list, tuple)):
+        counts = sum(count_parameters(x) for x in model_or_parameters)
     else:
         counts = sum(np.prod(v.size()) for v in model_or_parameters)
     if unit.lower() == "kb" or unit.lower() == "k":
