@@ -12,6 +12,7 @@ import torch.nn as nn
 import math
 import os
 import torch.nn.init as init
+import torch.nn.functional as F
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -715,69 +716,22 @@ def main(xargs):
         config.epochs + config.warmup,
     )
 
-    teacher_model = create_cnn_model(teacher_model, train_data, use_cuda=1)
+    teacher_model, teacher_optimizer = create_cnn_model(teacher_model, train_data, use_cuda=1)
     if teacher_checkpoint:
         teacher_model = load_checkpoint(teacher_model, teacher_checkpoint)
     else:
-        if 'resnet' in xargs.teacher_model:
-            optimizer = torch.optim.SGD(teacher_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-        elif 'plane' in xargs.teacher_model:
-            optimizer = torch.optim.SGD(teacher_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-        elif 'vgg' in xargs.teacher_model:
-            optimizer = torch.optim.Adam(teacher_model.parameters(), lr=1e-4)
-        elif 'alexnet' in xargs.teacher_model:
-            optimizer = torch.optim.Adam(teacher_model.parameters(), lr=0.001)
-        elif 'lenet' in xargs.teacher_model:
-            optimizer = torch.optim.Adam(teacher_model.parameters(), lr=0.001)
-        elif 'googlenet' in xargs.teacher_model:
-            optimizer = torch.optim.Adam(teacher_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
-        elif 'mobilenet' in xargs.teacher_model:
-            optimizer = torch.optim.Adam(teacher_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
-        elif 'squeezenet' in xargs.teacher_model:
-            optimizer = torch.optim.SGD(teacher_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-        elif 'shufflenet' in xargs.teacher_model:
-            optimizer = torch.optim.SGD(teacher_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-        teacher_model = train_teacher(search_loader, teacher_model, criterion, optimizer, logger, total_epoch, xargs.teacher_model)
-
+        teacher_model = train_teacher(search_loader, teacher_model, criterion, teacher_optimizer, logger, total_epoch, xargs.teacher_model)
 
     if TA:
-        student_model = create_cnn_model(student, train_data, use_cuda=1)
-        if 'resnet' in student:
-            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-        elif 'plane' in student:
-            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-        elif 'vgg' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=1e-4)
-        elif 'alexnet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-        elif 'lenet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-        elif 'googlenet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                         weight_decay=0)
-        elif 'mobilenet' in student:
-            optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                         weight_decay=0)
-        elif 'squeezenet' in student:
-            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-        elif 'shufflenet' in student:
-            optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+        student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
         if student_checkpoint:
             student_model = load_checkpoint(student_model, student_checkpoint)
             checkpoint = torch.load(student_checkpoint)
-            optimizer.load_state_dict(checkpoint['optimizer_dict'])
-
-
-        # Student_optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-        # Student_optimizer = torch.optim.Adam(student_model.parameters(), lr=0.025, betas=(0.5, 0.999), weight_decay=1e-4)
+            student_optimizer.load_state_dict(checkpoint['optimizer_dict'])
 
         if TA != 'GDAS':
-            network = create_cnn_model(TA, train_data, use_cuda=1)
+            network, w_optimizer = create_cnn_model(TA, train_data, use_cuda=1)
             # w_optimizer = torch.optim.Adam(network .parameters(), lr=0.025, betas=(0.5, 0.999), weight_decay=1e-4)
-            if "resnet" in TA:
-                w_optimizer = torch.optim.SGD(network.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-            else:
-                w_optimizer = torch.optim.SGD(network.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
             a_optimizer = None
 
         for epoch in range(start_epoch, total_epoch):
@@ -921,34 +875,15 @@ def main(xargs):
             start_time = time.time()
 
         if TA!='GDAS':
-            student_model = create_cnn_model(student, train_data, use_cuda=1)
-            if 'resnet' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-            elif 'plane' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-            elif 'vgg' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=1e-4)
-            elif 'alexnet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-            elif 'lenet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-            elif 'googlenet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                             weight_decay=0)
-            elif 'mobilenet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                             weight_decay=0)
-            elif 'squeezenet' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-            elif 'shufflenet' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+            student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
+
         student_best = -1
         for epoch in range(start_epoch, total_epoch):
             student_loss, student_top1, student_top5 = train_student(search_loader,
                 network,
                 student_model,
                 criterion,
-                optimizer,
+                student_optimizer,
                 epoch_str,
                 xargs.print_freq,
                 logger,)
@@ -986,28 +921,7 @@ def main(xargs):
 
     else:
         if student:
-            student_model = create_cnn_model(student, train_data, use_cuda=1)
-            if 'resnet' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-            elif 'plane' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
-            elif 'vgg' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=1e-4)
-            elif 'alexnet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-            elif 'lenet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001)
-            elif 'googlenet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                             weight_decay=0)
-            elif 'mobilenet' in student:
-                optimizer = torch.optim.Adam(student_model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                             weight_decay=0)
-            elif 'squeezenet' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-            elif 'shufflenet' in student:
-                optimizer = torch.optim.SGD(student_model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-
+            student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
             student_best = -1
             for epoch in range(start_epoch, total_epoch):
                 epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
@@ -1015,7 +929,7 @@ def main(xargs):
                                                                          teacher_model,
                                                                          student_model,
                                                                          criterion,
-                                                                         optimizer,
+                                                                         student_optimizer,
                                                                          epoch_str,
                                                                          xargs.print_freq,
                                                                          logger, )
@@ -1105,11 +1019,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="lenet", type=str, help="type of teacher mode")
-    parser.add_argument("--TA", default=None, type=str, help="type of TA")
-    parser.add_argument("--student_model", default=None, type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default=None, type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default=None, type=str,
+    parser.add_argument("--teacher_model", default="resnet110", type=str, help="type of teacher mode")
+    parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
+    parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
+    parser.add_argument("--teacher_checkpoint", default='Teacher_model_resnet110_90.82%_06-14,15.pth.tar', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='Teacher_model_lenet_68.99%_06-17,14.pth.tar', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()

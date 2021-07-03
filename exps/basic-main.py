@@ -21,6 +21,7 @@ from models import obtain_model
 from nas_infer_model import obtain_nas_infer_model
 from utils import get_model_infos
 from log_utils import AverageMeter, time_string, convert_secs2time
+from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
 
 
 
@@ -62,7 +63,8 @@ def main(args):
     elif args.model_source == "autodl-searched":
         base_model = obtain_model(model_config, args.extra_model_path)
     else:
-        raise ValueError("invalid model-source : {:}".format(args.model_source))
+        base_model = create_cnn_model(args.model_source, args.dataset, use_cuda=1)
+        # raise ValueError("invalid model-source : {:}".format(args.model_source))
     flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
     logger.log("model information : {:}".format(base_model.get_message()))
