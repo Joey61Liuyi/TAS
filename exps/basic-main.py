@@ -23,6 +23,7 @@ from utils import get_model_infos
 from log_utils import AverageMeter, time_string, convert_secs2time
 
 
+
 def main(args):
     assert torch.cuda.is_available(), "CUDA is not available."
     torch.backends.cudnn.enabled = True
