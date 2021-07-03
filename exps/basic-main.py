@@ -63,11 +63,11 @@ def main(args):
     elif args.model_source == "autodl-searched":
         base_model = obtain_model(model_config, args.extra_model_path)
     else:
-        base_model = create_cnn_model(args.model_source, args.dataset, use_cuda=1)
+        base_model, optimizer = create_cnn_model(args.model_source, args.dataset, use_cuda=1)
         # raise ValueError("invalid model-source : {:}".format(args.model_source))
     flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
-    logger.log("model information : {:}".format(base_model.get_message()))
+    # logger.log("model information : {:}".format(base_model.get_message()))
     logger.log("-" * 50)
     logger.log(
         "Params={:.2f} MB, FLOPs={:.2f} M ... = {:.2f} G".format(
@@ -77,9 +77,14 @@ def main(args):
     logger.log("-" * 50)
     logger.log("train_data : {:}".format(train_data))
     logger.log("valid_data : {:}".format(valid_data))
-    optimizer, scheduler, criterion = get_optim_scheduler(
-        base_model.parameters(), optim_config
-    )
+    if optimizer:
+        optimizer_, scheduler, criterion = get_optim_scheduler(
+            base_model.parameters(), optim_config
+        )
+    else:
+        optimizer, scheduler, criterion = get_optim_scheduler(
+            base_model.parameters(), optim_config
+        )
     logger.log("optimizer  : {:}".format(optimizer))
     logger.log("scheduler  : {:}".format(scheduler))
     logger.log("criterion  : {:}".format(criterion))
@@ -145,6 +150,8 @@ def main(args):
     else:
         logger.log("=> do not find the last-info file : {:}".format(last_info))
         start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
+
+    # start_epoch, valid_accuracies, max_bytes = 0, {"best": -1}, {}
 
     train_func, valid_func = get_procedures(args.procedure)
 
@@ -293,7 +300,7 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.model_source = 'autodl-searched'
+    args.model_source = 'vgg19'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'
@@ -301,7 +308,7 @@ if __name__ == "__main__":
     args.save_dir = '/output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
     args.batch_size = 48
-    args.rand_seed = 61
+    args.rand_seed = 777
     args.workers = 4
     args.eval_frequency = 1
     args.print_freq = 500

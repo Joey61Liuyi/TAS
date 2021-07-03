@@ -98,7 +98,11 @@ def procedure(
         if mode == "train":
             optimizer.zero_grad()
 
-        features, logits = network(inputs)
+        try:
+            features, logits = network(inputs)
+        except:
+            logits = network(inputs)
+
         if isinstance(logits, list):
             assert len(logits) == 2, "logits must has {:} items instead of {:}".format(
                 2, len(logits)
@@ -107,7 +111,7 @@ def procedure(
         else:
             logits, logits_aux = logits, None
         loss = criterion(logits, targets)
-        if config is not None and hasattr(config, "auxiliary") and config.auxiliary > 0:
+        if config is not None and logits_aux is not None and hasattr(config, "auxiliary") and config.auxiliary > 0:
             loss_aux = criterion(logits_aux, targets)
             loss += config.auxiliary * loss_aux
 
