@@ -8,6 +8,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 from copy import deepcopy
 from pathlib import Path
 import warnings
+import os
 warnings.filterwarnings("ignore")
 
 lib_dir = (Path(__file__).parent / ".." / "lib").resolve()
@@ -31,6 +32,9 @@ def main(args):
     torch.backends.cudnn.benchmark = True
     # torch.backends.cudnn.deterministic = True
     torch.set_num_threads(args.workers)
+
+    if args.rand_seed is None or args.rand_seed < 0:
+        args.rand_seed = random.randint(1, 100000)
 
     prepare_seed(args.rand_seed)
     logger = prepare_logger(args)
@@ -94,6 +98,8 @@ def main(args):
         logger.path("model"),
         logger.path("best"),
     )
+
+
     network, criterion = torch.nn.DataParallel(base_model).cuda(), criterion.cuda()
 
     if last_info.exists():  # automatically resume from previous checkpoint
@@ -222,6 +228,12 @@ def main(args):
                 )
             )
             if valid_acc1 > valid_accuracies["best"]:
+                g = os.walk(os.path.abspath('./output/nas-infer'))
+                for path, dir_list, file_list in g:
+                    for file_name in file_list:
+                        if '_{}_{:.2f}%'.format(args.model_source, valid_accuracies["best"]) in file_name:
+                            tep = os.path.join(path, file_name)
+                            os.remove(tep)
                 valid_accuracies["best"] = valid_acc1
                 find_best = True
                 logger.log(
@@ -269,7 +281,13 @@ def main(args):
             logger,
         )
         if find_best:
-            copy_checkpoint(model_base_path, model_best_path, logger)
+
+            tep_info = '_{}_{:.2f}%_{}'.format(args.model_source, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
+            model_best_path_new = list(str(model_best_path))
+            model_best_path_new.insert(-4, tep_info)
+            model_best_path_new = ''.join(model_best_path_new)
+            model_best_path_new = Path(model_best_path_new)
+            copy_checkpoint(model_base_path, model_best_path_new, logger)
         last_info = save_checkpoint(
             {
                 "epoch": epoch,
@@ -300,15 +318,15 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.model_source = 'vgg19'
+    args.model_source = 'resnet110'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'
     args.procedure = 'basic'
-    args.save_dir = '/output/nas-infer/cifar10-BS96-gdas_serached'
+    args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
     args.batch_size = 48
-    args.rand_seed = 777
+    args.rand_seed = -1
     args.workers = 4
     args.eval_frequency = 1
     args.print_freq = 500
