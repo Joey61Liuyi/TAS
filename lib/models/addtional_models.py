@@ -11,6 +11,20 @@ import math
 
 class_num = 10
 
+def adjust_learning_rate(optimizer, epoch, epoch_total):
+
+    # depending on dataset
+    if epoch < int(epoch_total / 2.0):
+        lr = 0.1
+    elif epoch < int(epoch_total * 3 / 4.0):
+        lr = 0.1 * 0.1
+    else:
+        lr = 0.1 * 0.01
+
+    # update optimizer's learning rate
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 

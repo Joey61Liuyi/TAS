@@ -14,7 +14,7 @@ __all__ = ['change_key', 'get_cell_based_tiny_net', 'get_search_spaces', 'get_ci
 from config_utils import dict2config
 from models.SharedUtils import change_key
 from models.cell_searchs import CellStructure, CellArchitectures
-from models.addtional_models import create_cnn_model, load_checkpoint, count_parameters_in_MB
+from models.addtional_models import create_cnn_model, load_checkpoint, count_parameters_in_MB, adjust_learning_rate
 
 
 # Cell-based NAS Models

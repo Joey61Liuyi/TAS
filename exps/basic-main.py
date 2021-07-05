@@ -22,8 +22,7 @@ from models import obtain_model
 from nas_infer_model import obtain_nas_infer_model
 from utils import get_model_infos
 from log_utils import AverageMeter, time_string, convert_secs2time
-from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
-
+from models import create_cnn_model, load_checkpoint, count_parameters_in_MB, adjust_learning_rate
 
 
 def main(args):
@@ -166,6 +165,9 @@ def main(args):
     start_time = time.time()
     epoch_time = AverageMeter()
     for epoch in range(start_epoch, total_epoch):
+
+        if 'resnet' in args.model_source:
+            adjust_learning_rate(optimizer, epoch, total_epoch)
         scheduler.update(epoch, 0.0)
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.avg * (total_epoch - epoch), True)
@@ -318,7 +320,7 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.model_source = 'resnet110'
+    args.model_source = 'resnet56'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'

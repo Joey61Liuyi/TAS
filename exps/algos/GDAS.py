@@ -35,19 +35,7 @@ from nas_201_api import NASBench201API as API
 from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
 
 
-def adjust_learning_rate(optimizer, epoch, epoch_total):
 
-    # depending on dataset
-    if epoch < int(epoch_total / 2.0):
-        lr = 0.1
-    elif epoch < int(epoch_total * 3 / 4.0):
-        lr = 0.1 * 0.1
-    else:
-        lr = 0.1 * 0.01
-
-    # update optimizer's learning rate
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
 
 # def NAS_TA_Train(teacher, network, student, base_input, base_target, arch_input, arch_target, T, lambda_, criterion, w_optimizer, a_optimizer):
 #     network.train()
@@ -939,18 +927,13 @@ def main(xargs):
                     student_accuracy['best'] = student_top1
 
             logger.log('----------------')
-
-            logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model,
-                                                                               count_parameters_in_MB(teacher_model)))
+            logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model, count_parameters_in_MB(teacher_model)))
             logger.log('we used {:} as our TA with param size {:}'.format(TA, count_parameters_in_MB(network)))
-            logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model,
-                                                                               count_parameters_in_MB(student_model)))
-
+            logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
             logger.log('we used {:} online epochs out of total epochs of {:}'.format(xargs.epoch_online, total_epoch))
             logger.log('The best ACC of  : {:.2f}%'.format(TA_accuracy['best']))
             logger.log('The best ACC of Student: {:.2f}%'.format(student_accuracy['best']))
             logger.log('----------------')
-
             logger.close()
 
 if __name__ == "__main__":
