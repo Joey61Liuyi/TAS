@@ -89,7 +89,10 @@ def procedure(
     end = time.time()
     for i, (inputs, targets) in enumerate(xloader):
         if mode == "train":
-            scheduler.update(None, 1.0 * i / len(xloader))
+            try:
+                scheduler.update(None, 1.0 * i / len(xloader))
+            except:
+                pass
         # measure data loading time
         data_time.update(time.time() - end)
         # calculate prediction and loss
@@ -135,8 +138,8 @@ def procedure(
                 + time_string()
                 + " [{:}][{:03d}/{:03d}]".format(extra_info, i, len(xloader))
             )
-            if scheduler is not None:
-                Sstr += " {:}".format(scheduler.get_min_info())
+            # if scheduler is not None:
+                # Sstr += " {:}".format(scheduler.get_min_info())
             Tstr = "Time {batch_time.val:.2f} ({batch_time.avg:.2f}) Data {data_time.val:.2f} ({data_time.avg:.2f})".format(
                 batch_time=batch_time, data_time=data_time
             )

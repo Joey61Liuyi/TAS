@@ -7,23 +7,23 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import math
+from torch.optim.lr_scheduler import _LRScheduler
 
 
 class_num = 10
 
-def adjust_learning_rate(optimizer, epoch, epoch_total):
 
-    # depending on dataset
-    if epoch < int(epoch_total / 2.0):
-        lr = 0.1
-    elif epoch < int(epoch_total * 3 / 4.0):
-        lr = 0.1 * 0.1
-    else:
-        lr = 0.1 * 0.01
+class ExponentialLR(_LRScheduler):
+    def __init__(self, optimizer, end_lr, num_iter, last_epoch=-1):
+        self.end_lr = end_lr
+        self.num_iter = num_iter
+        super(ExponentialLR, self).__init__(optimizer, last_epoch)
 
-    # update optimizer's learning rate
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+    def get_lr(self):
+        curr_iter = self.last_epoch
+        r = curr_iter / self.num_iter
+        return [base_lr * (self.end_lr / base_lr) ** r for base_lr in self.base_lrs]
+
 
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
@@ -749,7 +749,7 @@ def is_resnet(name):
         return 'shufflenet'
 
 
-def create_cnn_model(name, dataset="cifar100", use_cuda = False):
+def create_cnn_model(name, dataset="cifar100", total_epochs = 160, use_cuda = False):
     """
     Create a student for training, given student name and dataset
     :param name: name of the student. e.g., resnet110, resnet32, plane2, plane10, ...
@@ -758,11 +758,14 @@ def create_cnn_model(name, dataset="cifar100", use_cuda = False):
     """
     num_classes = 100 if dataset == 'cifar100' else 10
     model = None
+    scheduler = None
     if is_resnet(name) == 'resnet':
         resnet_size = name[6:]
         resnet_model = resnet_book.get(resnet_size)(num_classes = num_classes)
         model = resnet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+        # scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer, [total_epochs/2, total_epochs*3/4, total_epochs], gamma=0.1, last_epoch=-1)
+        scheduler = MultiStepLR(optimizer, 5, total_epochs, [total_epochs/2, total_epochs*3/4, total_epochs], 0.1)
     elif is_resnet(name) == 'plane':
         plane_size = name[5:]
         model_spec = plane_cifar10_book.get(plane_size) if num_classes == 10 else plane_cifar100_book.get(
@@ -770,33 +773,47 @@ def create_cnn_model(name, dataset="cifar100", use_cuda = False):
         plane_model = ConvNetMaker(model_spec)
         model = plane_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, total_epochs*2, gamma=0.1, last_epoch=-1)
+
     elif is_resnet(name) == 'vgg':
         vgg_size = name[3:]
         vgg_model = vgg_cifar10_book.get(vgg_size)(num_classes=num_classes)
         model = vgg_model
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+
     elif is_resnet(name) == 'alexnet':
         alexnet_model = AlexNet(num_classes)
         model = alexnet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = ExponentialLR(optimizer, 10, total_epochs, last_epoch=-1)
+
     elif is_resnet(name) == 'lenet':
         lenet_model = LeNet()
         model = lenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+
     elif is_resnet(name) == 'googlenet':
         googlenet_model = GoogLeNet()
         model = googlenet_model
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                     weight_decay=0)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
     elif is_resnet(name) == 'mobilenet':
         mobilenet_model = MobileNet()
         model = mobilenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                      weight_decay=0)
+        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer,
+                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
+                                                        gamma=0.1, last_epoch=-1)
     elif is_resnet(name) == 'squeezenet':
         squeezenet_model = SqueezeNet()
         model = squeezenet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer,
+                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
+                                                        gamma=0.1, last_epoch=-1)
     elif is_resnet(name) == 'shufflenet':
         shufflenet_type = name[10:]
         if shufflenet_type == 'g2' or shufflenet_type == 'G2':
@@ -805,12 +822,15 @@ def create_cnn_model(name, dataset="cifar100", use_cuda = False):
             shufflenet_model = ShuffleNetG3()
         model = shufflenet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer,
+                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
+                                                        gamma=0.1, last_epoch=-1)
 
     # copy to cuda if activated
     if use_cuda:
         model = model.cuda()
 
-    return model, optimizer
+    return model, optimizer, scheduler
 
 
 def load_checkpoint(model, checkpoint_path):

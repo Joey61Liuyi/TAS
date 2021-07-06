@@ -22,7 +22,7 @@ from models import obtain_model
 from nas_infer_model import obtain_nas_infer_model
 from utils import get_model_infos
 from log_utils import AverageMeter, time_string, convert_secs2time
-from models import create_cnn_model, load_checkpoint, count_parameters_in_MB, adjust_learning_rate
+from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
 
 
 def main(args):
@@ -58,6 +58,7 @@ def main(args):
     # get configures
     model_config = load_config(args.model_config, {"class_num": class_num}, logger)
     optim_config = load_config(args.optim_config, {"class_num": class_num}, logger)
+    total_epoch = optim_config.epochs + optim_config.warmup
 
     if args.model_source == "normal":
         base_model = obtain_model(model_config)
@@ -66,7 +67,7 @@ def main(args):
     elif args.model_source == "autodl-searched":
         base_model = obtain_model(model_config, args.extra_model_path)
     else:
-        base_model, optimizer = create_cnn_model(args.model_source, args.dataset, use_cuda=1)
+        base_model, optimizer, scheduler = create_cnn_model(args.model_source, args.dataset, total_epoch, use_cuda = 1)
         # raise ValueError("invalid model-source : {:}".format(args.model_source))
     flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
@@ -81,7 +82,7 @@ def main(args):
     logger.log("train_data : {:}".format(train_data))
     logger.log("valid_data : {:}".format(valid_data))
     if optimizer:
-        optimizer_, scheduler, criterion = get_optim_scheduler(
+        optimizer_, scheduler_, criterion = get_optim_scheduler(
             base_model.parameters(), optim_config
         )
     else:
@@ -160,15 +161,15 @@ def main(args):
 
     train_func, valid_func = get_procedures(args.procedure)
 
-    total_epoch = optim_config.epochs + optim_config.warmup
+
     # Main Training and Evaluation Loop
     start_time = time.time()
     epoch_time = AverageMeter()
     for epoch in range(start_epoch, total_epoch):
-
-        if 'resnet' in args.model_source:
-            adjust_learning_rate(optimizer, epoch, total_epoch)
-        scheduler.update(epoch, 0.0)
+        try:
+            scheduler.update(epoch, 0.0)
+        except:
+            scheduler.step()
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.avg * (total_epoch - epoch), True)
         )
@@ -320,7 +321,7 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.model_source = 'resnet56'
+    # args.model_source = 'resnet56'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'
@@ -333,4 +334,9 @@ if __name__ == "__main__":
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    main(args)
+    model_list = ['plane10', 'plane8', 'plane6', 'plane4', 'plane2', 'lenet', 'shufflenetg2', 'squeezenet', 'alexnet']
+
+    for one in model_list:
+        args.rand_seed = -1
+        args.model_source = one
+        main(args)
