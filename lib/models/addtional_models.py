@@ -749,7 +749,7 @@ def is_resnet(name):
         return 'shufflenet'
 
 
-def create_cnn_model(name, dataset="cifar100", total_epochs = 160, use_cuda = False):
+def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = None, use_cuda = False):
     """
     Create a student for training, given student name and dataset
     :param name: name of the student. e.g., resnet110, resnet32, plane2, plane10, ...
@@ -759,13 +759,14 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, use_cuda = Fa
     num_classes = 100 if dataset == 'cifar100' else 10
     model = None
     scheduler = None
+
     if is_resnet(name) == 'resnet':
         resnet_size = name[6:]
         resnet_model = resnet_book.get(resnet_size)(num_classes = num_classes)
         model = resnet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-        # scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer, [total_epochs/2, total_epochs*3/4, total_epochs], gamma=0.1, last_epoch=-1)
-        scheduler = MultiStepLR(optimizer, 5, total_epochs, [total_epochs/2, total_epochs*3/4, total_epochs], 0.1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs/2, total_epochs*3/4, total_epochs], gamma=0.1, last_epoch=-1)
+        # scheduler = MultiStepLR(optimizer, 5, total_epochs, [total_epochs/2, total_epochs*3/4, total_epochs], 0.1)
     elif is_resnet(name) == 'plane':
         plane_size = name[5:]
         model_spec = plane_cifar10_book.get(plane_size) if num_classes == 10 else plane_cifar100_book.get(
@@ -798,20 +799,20 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, use_cuda = Fa
         googlenet_model = GoogLeNet()
         model = googlenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
-        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
     elif is_resnet(name) == 'mobilenet':
         mobilenet_model = MobileNet()
         model = mobilenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
                                      weight_decay=0)
-        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer,
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                         [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
                                                         gamma=0.1, last_epoch=-1)
     elif is_resnet(name) == 'squeezenet':
         squeezenet_model = SqueezeNet()
         model = squeezenet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
-        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer,
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                         [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
                                                         gamma=0.1, last_epoch=-1)
     elif is_resnet(name) == 'shufflenet':
@@ -822,7 +823,7 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, use_cuda = Fa
             shufflenet_model = ShuffleNetG3()
         model = shufflenet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-        scheduler = torch.optim.lr_sheduler.MultiStepLR(optimizer,
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                         [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
                                                         gamma=0.1, last_epoch=-1)
 
@@ -830,19 +831,25 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, use_cuda = Fa
     if use_cuda:
         model = model.cuda()
 
+    if model_path:
+        checkpoint = torch.load(model_path)
+        model.load_state_dict(checkpoint['base-model'])
+        scheduler.load_state_dict(checkpoint['scheduler'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+
     return model, optimizer, scheduler
 
 
-def load_checkpoint(model, checkpoint_path):
-    """
-    Loads weights from checkpoint
-    :param model: a pytorch nn student
-    :param str checkpoint_path: address/path of a file
-    :return: pytorch nn student with weights loaded from checkpoint
-    """
-    model_ckp = torch.load(checkpoint_path)
-    model.load_state_dict(model_ckp['model_state_dict'])
-    return model
+# def load_checkpoint(model, checkpoint_path):
+#     """
+#     Loads weights from checkpoint
+#     :param model: a pytorch nn student
+#     :param str checkpoint_path: address/path of a file
+#     :return: pytorch nn student with weights loaded from checkpoint
+#     """
+#     model_ckp = torch.load(checkpoint_path)
+#     model.load_state_dict(model_ckp['model_state_dict'])
+#     return model
 
 
 def count_parameters_in_MB(model):

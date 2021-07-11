@@ -22,7 +22,7 @@ from models import obtain_model
 from nas_infer_model import obtain_nas_infer_model
 from utils import get_model_infos
 from log_utils import AverageMeter, time_string, convert_secs2time
-from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
+from models import create_cnn_model, count_parameters_in_MB
 
 
 def main(args):
@@ -60,15 +60,26 @@ def main(args):
     optim_config = load_config(args.optim_config, {"class_num": class_num}, logger)
     total_epoch = optim_config.epochs + optim_config.warmup
 
-    if args.model_source == "normal":
+
+    if args.teacher_model:
+        if args.teacher_model == "normal":
+            teacher_model = obtain_model(model_config)
+        elif args.teacher_model == "nas":
+            teacher_model = obtain_nas_infer_model(model_config, args.teacher_path)
+        elif args.teacher_model == "autodl-searched":
+            teacher_model = obtain_model(model_config, args.teacher_path)
+        else:
+            teacher_model, teacher_optimizer, teacher_scheduler = create_cnn_model(args.teacher_model, args.dataset, total_epoch, args.teacher_path, use_cuda=1)
+
+    if args.student_model == "normal":
         base_model = obtain_model(model_config)
-    elif args.model_source == "nas":
+    elif args.student_model == "nas":
         base_model = obtain_nas_infer_model(model_config, args.extra_model_path)
-    elif args.model_source == "autodl-searched":
+    elif args.student_model == "autodl-searched":
         base_model = obtain_model(model_config, args.extra_model_path)
     else:
-        base_model, optimizer, scheduler = create_cnn_model(args.model_source, args.dataset, total_epoch, use_cuda = 1)
-        # raise ValueError("invalid model-source : {:}".format(args.model_source))
+        base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
+        # raise ValueError("invalid model-source : {:}".format(args.student_model))
     flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
     # logger.log("model information : {:}".format(base_model.get_message()))
@@ -86,7 +97,7 @@ def main(args):
             base_model.parameters(), optim_config
         )
     else:
-        optimizer, scheduler, criterion = get_optim_scheduler(
+         optimizer , scheduler, criterion = get_optim_scheduler(
             base_model.parameters(), optim_config
         )
     logger.log("optimizer  : {:}".format(optimizer))
@@ -98,7 +109,6 @@ def main(args):
         logger.path("model"),
         logger.path("best"),
     )
-
 
     network, criterion = torch.nn.DataParallel(base_model).cuda(), criterion.cuda()
 
@@ -190,6 +200,7 @@ def main(args):
         # train for one epoch
         train_loss, train_acc1, train_acc5 = train_func(
             train_loader,
+            teacher_model,
             network,
             criterion,
             scheduler,
@@ -234,7 +245,7 @@ def main(args):
                 g = os.walk(os.path.abspath('./output/nas-infer'))
                 for path, dir_list, file_list in g:
                     for file_name in file_list:
-                        if '_{}_{:.2f}%'.format(args.model_source, valid_accuracies["best"]) in file_name:
+                        if '_{}_{:.2f}%'.format(args.student_model, valid_accuracies["best"]) in file_name:
                             tep = os.path.join(path, file_name)
                             os.remove(tep)
                 valid_accuracies["best"] = valid_acc1
@@ -285,7 +296,7 @@ def main(args):
         )
         if find_best:
 
-            tep_info = '_{}_{:.2f}%_{}'.format(args.model_source, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
+            tep_info = '_{}_{:.2f}%_{}'.format(args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
             model_best_path_new = list(str(model_best_path))
             model_best_path_new.insert(-4, tep_info)
             model_best_path_new = ''.join(model_best_path_new)
@@ -321,11 +332,14 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    # args.model_source = 'resnet56'
+    args.teacher_model = 'resnet110'
+    args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
+
+    args.student_model = 'plane2'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'
-    args.procedure = 'basic'
+    args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
     args.batch_size = 48
@@ -334,9 +348,13 @@ if __name__ == "__main__":
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    model_list = ['plane10', 'plane8', 'plane6', 'plane4', 'plane2', 'lenet', 'shufflenetg2', 'squeezenet', 'alexnet']
 
-    for one in model_list:
-        args.rand_seed = -1
-        args.model_source = one
-        main(args)
+
+    main(args)
+
+    # model_list = ['squeezenet']
+    #
+    # for one in model_list:
+    #     args.rand_seed = -1
+    #     args.student_model = one
+    #     main(args)
