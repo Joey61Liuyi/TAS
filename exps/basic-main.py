@@ -245,7 +245,7 @@ def main(args):
                 g = os.walk(os.path.abspath('./output/nas-infer'))
                 for path, dir_list, file_list in g:
                     for file_name in file_list:
-                        if '_{}_{:.2f}%'.format(args.student_model, valid_accuracies["best"]) in file_name:
+                        if '{}_{}_{:.2f}%'.format(args.teacher_model, args.student_model, valid_accuracies["best"]) in file_name:
                             tep = os.path.join(path, file_name)
                             os.remove(tep)
                 valid_accuracies["best"] = valid_acc1
@@ -296,7 +296,7 @@ def main(args):
         )
         if find_best:
 
-            tep_info = '_{}_{:.2f}%_{}'.format(args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
+            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
             model_best_path_new = list(str(model_best_path))
             model_best_path_new.insert(-4, tep_info)
             model_best_path_new = ''.join(model_best_path_new)
@@ -352,9 +352,9 @@ if __name__ == "__main__":
 
     main(args)
 
-    # model_list = ['squeezenet']
-    #
-    # for one in model_list:
-    #     args.rand_seed = -1
-    #     args.student_model = one
-    #     main(args)
+    model_list = ['resnet8', 'plane10', 'plane8', 'plane6', 'plane4']
+
+    for one in model_list:
+        args.rand_seed = -1
+        args.student_model = one
+        main(args)
