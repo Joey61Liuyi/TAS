@@ -865,14 +865,13 @@ def main(xargs):
 
         logger.log("\n" + "-" * 100)
         # check the performance from the architecture dataset
-        if TA == 'GDAS':
-            logger.log(
-                "GDAS : run {:} epochs, cost {:.1f} s, last-geno is {:}.".format(
-                    total_epoch, search_time.sum, genotypes[total_epoch - 1]
-                )
+        logger.log(
+            "GDAS : run {:} epochs, cost {:.1f} s, last-geno is {:}.".format(
+                total_epoch, search_time.sum, genotypes[epoch - 1]
             )
-            if api is not None:
-                logger.log("{:}".format(api.query_by_arch(genotypes[total_epoch - 1], "200")))
+        )
+        if api is not None:
+            logger.log("{:}".format(api.query_by_arch(genotypes[epoch - 1], "200")))
 
 
         logger.log('----------------')
