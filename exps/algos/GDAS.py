@@ -32,7 +32,7 @@ from utils import get_model_infos, obtain_accuracy
 from log_utils import AverageMeter, time_string, convert_secs2time
 from models import get_cell_based_tiny_net, get_search_spaces
 from nas_201_api import NASBench201API as API
-from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
+from models import create_cnn_model, count_parameters_in_MB
 
 
 
@@ -59,130 +59,130 @@ from models import create_cnn_model, load_checkpoint, count_parameters_in_MB
 #     arch_loss = (1 - lambda_) * criterion(logits, arch_target) + lambda_ * loss_KD_TA
 #     arch_loss.backward()
 #     a_optimizer.step()
-
-def train_teacher(xloader,teacher_model, criterion, optimizer, logger, total_epochs, teacher_name):
-
-    best_acc = -1
-
-    for epoch in range(total_epochs):
-        data_time, batch_time = AverageMeter(), AverageMeter()
-        base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
-        end = time.time()
-        for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
-                xloader
-        ):
-            teacher_model.train()
-            base_targets = base_targets.cuda(non_blocking=True)
-            arch_targets = arch_targets.cuda(non_blocking=True)
-            data_time.update(time.time() - end)
-            optimizer.zero_grad()
-            logits_teacher = teacher_model(base_inputs.cuda())
-            loss = criterion(logits_teacher, base_targets)
-            loss.backward()
-            optimizer.step()
-
-            teacher_model.eval()
-            logits_teacher = teacher_model(arch_inputs.cuda())
-            Teacher_prec1, Teacher_prec5 = obtain_accuracy(
-                logits_teacher, arch_targets.data, topk = (1,5)
-            )
-            base_losses.update(loss.item(), base_inputs.size(0))
-            base_top1.update(Teacher_prec1.item(), arch_inputs.size(0))
-            base_top5.update(Teacher_prec5.item(), arch_inputs.size(0))
-
-        logger.log('Training Teacher {:} at {:} epoch, the current acc is {:.2f}%, and loss is {:}'.format(teacher_name, epoch, base_top1.avg, base_losses.avg))
-        if 'resnet' in teacher_name:
-            adjust_learning_rate(optimizer, epoch, total_epochs)
-
-        if base_top1.avg >= best_acc:
-            g = os.walk(os.path.abspath('.'))
-            for path, dir_list, file_list in g:
-                for file_name in file_list:
-                    if 'Teacher_model_{}_{:.2f}%'.format(teacher_name, best_acc) in file_name:
-                        tep = os.path.join(path, file_name)
-                        os.remove(tep)
-            best_acc = base_top1.avg
-            torch.save({
-                'model_state_dict': teacher_model.state_dict(),
-                'optimizer_dict': optimizer.state_dict(),
-                'epoch': epoch
-            }, 'Teacher_model_{}_{:.2f}%_{}.pth.tar'.format(teacher_name, best_acc, time.strftime("%m-%d,%H", time.localtime()))
-            )
-
-
-def train_student(xloader,
-    network,
-    student_model,
-    criterion,
-    optimizer,
-    epoch_str,
-    print_freq,
-    logger,):
-    network.eval()
-    data_time, batch_time = AverageMeter(), AverageMeter()
-    base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
-    end = time.time()
-    T = 5
-    lambda_ = 0.5
-
-    for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
-            xloader
-    ):
-        network.eval()
-        student_model.train()
-        base_targets = base_targets.cuda(non_blocking=True)
-        arch_targets = arch_targets.cuda(non_blocking=True)
-        # measure data loading time
-        data_time.update(time.time() - end)
-        optimizer.zero_grad()
-
-        try:
-            _, logits_TA = network(base_inputs.cuda())
-        except:
-            logits_TA = network(base_inputs.cuda())
-
-        logits_student = student_model(base_inputs.cuda())
-        loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
-                                            F.softmax(logits_TA / T, dim=1))
-        base_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_TA
-        base_loss.backward()
-        torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-        optimizer.step()
-
-        # record
-
-        student_model.eval()
-        logits_student = student_model(arch_inputs.cuda())
-
-        base_prec1, base_prec5 = obtain_accuracy(
-            logits_student.data, arch_targets.data, topk=(1, 5)
-        )
-
-        base_losses.update(base_loss.item(), base_inputs.size(0))
-        base_top1.update(base_prec1.item(), base_inputs.size(0))
-        base_top5.update(base_prec5.item(), base_inputs.size(0))
-        # update the architecture-weight
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if step % print_freq == 0 or step + 1 == len(xloader):
-            Sstr = (
-                    "*SEARCH* "
-                    + time_string()
-                    + " [{:}][{:03d}/{:03d}]".format(epoch_str, step, len(xloader))
-            )
-            Tstr = "Time {batch_time.val:.2f} ({batch_time.avg:.2f}) Data {data_time.val:.2f} ({data_time.avg:.2f})".format(
-                batch_time=batch_time, data_time=data_time
-            )
-            Wstr = "Student_Final [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
-                loss=base_losses, top1=base_top1, top5=base_top5
-            )
-
-            logger.log(Sstr + " " + Tstr + " " + Wstr)
-
-    return base_losses.avg, base_top1.avg, base_top5.avg
+#
+# def train_teacher(xloader,teacher_model, criterion, optimizer, logger, total_epochs, teacher_name):
+#
+#     best_acc = -1
+#
+#     for epoch in range(total_epochs):
+#         data_time, batch_time = AverageMeter(), AverageMeter()
+#         base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
+#         end = time.time()
+#         for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
+#                 xloader
+#         ):
+#             teacher_model.train()
+#             base_targets = base_targets.cuda(non_blocking=True)
+#             arch_targets = arch_targets.cuda(non_blocking=True)
+#             data_time.update(time.time() - end)
+#             optimizer.zero_grad()
+#             logits_teacher = teacher_model(base_inputs.cuda())
+#             loss = criterion(logits_teacher, base_targets)
+#             loss.backward()
+#             optimizer.step()
+#
+#             teacher_model.eval()
+#             logits_teacher = teacher_model(arch_inputs.cuda())
+#             Teacher_prec1, Teacher_prec5 = obtain_accuracy(
+#                 logits_teacher, arch_targets.data, topk = (1,5)
+#             )
+#             base_losses.update(loss.item(), base_inputs.size(0))
+#             base_top1.update(Teacher_prec1.item(), arch_inputs.size(0))
+#             base_top5.update(Teacher_prec5.item(), arch_inputs.size(0))
+#
+#         logger.log('Training Teacher {:} at {:} epoch, the current acc is {:.2f}%, and loss is {:}'.format(teacher_name, epoch, base_top1.avg, base_losses.avg))
+#         if 'resnet' in teacher_name:
+#             adjust_learning_rate(optimizer, epoch, total_epochs)
+#
+#         if base_top1.avg >= best_acc:
+#             g = os.walk(os.path.abspath('.'))
+#             for path, dir_list, file_list in g:
+#                 for file_name in file_list:
+#                     if 'Teacher_model_{}_{:.2f}%'.format(teacher_name, best_acc) in file_name:
+#                         tep = os.path.join(path, file_name)
+#                         os.remove(tep)
+#             best_acc = base_top1.avg
+#             torch.save({
+#                 'model_state_dict': teacher_model.state_dict(),
+#                 'optimizer_dict': optimizer.state_dict(),
+#                 'epoch': epoch
+#             }, 'Teacher_model_{}_{:.2f}%_{}.pth.tar'.format(teacher_name, best_acc, time.strftime("%m-%d,%H", time.localtime()))
+#             )
+#
+#
+# def train_student(xloader,
+#     network,
+#     student_model,
+#     criterion,
+#     optimizer,
+#     epoch_str,
+#     print_freq,
+#     logger,):
+#     network.eval()
+#     data_time, batch_time = AverageMeter(), AverageMeter()
+#     base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
+#     end = time.time()
+#     T = 5
+#     lambda_ = 0.5
+#
+#     for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
+#             xloader
+#     ):
+#         network.eval()
+#         student_model.train()
+#         base_targets = base_targets.cuda(non_blocking=True)
+#         arch_targets = arch_targets.cuda(non_blocking=True)
+#         # measure data loading time
+#         data_time.update(time.time() - end)
+#         optimizer.zero_grad()
+#
+#         try:
+#             _, logits_TA = network(base_inputs.cuda())
+#         except:
+#             logits_TA = network(base_inputs.cuda())
+#
+#         logits_student = student_model(base_inputs.cuda())
+#         loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
+#                                             F.softmax(logits_TA / T, dim=1))
+#         base_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_TA
+#         base_loss.backward()
+#         torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
+#         optimizer.step()
+#
+#         # record
+#
+#         student_model.eval()
+#         logits_student = student_model(arch_inputs.cuda())
+#
+#         base_prec1, base_prec5 = obtain_accuracy(
+#             logits_student.data, arch_targets.data, topk=(1, 5)
+#         )
+#
+#         base_losses.update(base_loss.item(), base_inputs.size(0))
+#         base_top1.update(base_prec1.item(), base_inputs.size(0))
+#         base_top5.update(base_prec5.item(), base_inputs.size(0))
+#         # update the architecture-weight
+#
+#         # measure elapsed time
+#         batch_time.update(time.time() - end)
+#         end = time.time()
+#
+#         if step % print_freq == 0 or step + 1 == len(xloader):
+#             Sstr = (
+#                     "*SEARCH* "
+#                     + time_string()
+#                     + " [{:}][{:03d}/{:03d}]".format(epoch_str, step, len(xloader))
+#             )
+#             Tstr = "Time {batch_time.val:.2f} ({batch_time.avg:.2f}) Data {data_time.val:.2f} ({data_time.avg:.2f})".format(
+#                 batch_time=batch_time, data_time=data_time
+#             )
+#             Wstr = "Student_Final [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
+#                 loss=base_losses, top1=base_top1, top5=base_top5
+#             )
+#
+#             logger.log(Sstr + " " + Tstr + " " + Wstr)
+#
+#     return base_losses.avg, base_top1.avg, base_top5.avg
 
 
 def search_func_modified(xloader,
@@ -282,293 +282,293 @@ def search_func_modified(xloader,
             logger.log(Sstr + " " + Tstr + " " + Wstr + " " + Astr)
 
     return base_losses.avg, base_top1.avg, base_top5.avg, arch_losses.avg, arch_top1.avg, arch_top5.avg
-
-
-def search_func(
-    xloader,
-    teacher_model,
-    network,
-    student_model,
-    criterion,
-    scheduler,
-    w_optimizer,
-    a_optimizer,
-    student_optimizer,
-    epoch_str,
-    print_freq,
-    logger,
-    training_mode
-):
-
-    teacher_model.eval()
-    data_time, batch_time = AverageMeter(), AverageMeter()
-    base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
-    arch_losses, arch_top1, arch_top5 = AverageMeter(), AverageMeter(), AverageMeter()
-    student_losses, student_top1, student_top5 = AverageMeter(), AverageMeter(), AverageMeter()
-    end = time.time()
-    T = 5
-    lambda_ = 0.5
-
-    for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
-        xloader
-    ):
-        scheduler.update(None, 1.0 * step / len(xloader))
-        base_targets = base_targets.cuda(non_blocking=True)
-        arch_targets = arch_targets.cuda(non_blocking=True)
-        # measure data loading time
-        data_time.update(time.time() - end)
-
-        # pretraining TA
-
-
-        if a_optimizer == None:
-            if training_mode == 0:
-                network.train()
-                w_optimizer.zero_grad()
-                logits_ta = network(base_inputs.cuda())
-                logits_teacher = teacher_model(base_inputs.cuda())
-                loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits_ta / T, dim=1),
-                                                    F.softmax(logits_teacher / T, dim=1))
-                TA_loss = (1 - lambda_) * criterion(logits_ta, base_targets) + lambda_ * loss_KD_TA
-                TA_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-                w_optimizer.step()
-
-                network.eval()
-                logits_TA_test = network(arch_inputs.cuda())
-
-                TA_prec1, TA_prec5 = obtain_accuracy(
-                    logits_TA_test.data, arch_targets.data, topk=(1, 5)
-                )
-
-                base_losses.update(TA_loss.item(), base_inputs.size(0))
-                base_top1.update(TA_prec1.item(), arch_inputs.size(0))
-                base_top5.update(TA_prec5.item(), arch_inputs.size(0))
-
-            elif training_mode == 1:
-                network.train()
-                w_optimizer.zero_grad()
-                logits_ta = network(base_inputs.cuda())
-                logits_teacher = teacher_model(base_inputs.cuda())
-                loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits_ta / T, dim=1),
-                                                    F.softmax(logits_teacher / T, dim=1))
-                TA_loss = (1 - lambda_) * criterion(logits_ta, base_targets) + lambda_ * loss_KD_TA
-                TA_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-                w_optimizer.step()
-
-                network.eval()
-                logits_TA_test = network(arch_inputs.cuda())
-
-                TA_prec1, TA_prec5 = obtain_accuracy(
-                    logits_TA_test.data, arch_targets.data, topk=(1, 5)
-                )
-
-                base_losses.update(TA_loss.item(), base_inputs.size(0))
-                base_top1.update(TA_prec1.item(), arch_inputs.size(0))
-                base_top5.update(TA_prec5.item(), arch_inputs.size(0))
-
-                # Training Student
-                student_model.train()
-                network.eval()
-                student_optimizer.zero_grad()
-                logits_ta = network(base_inputs.cuda())
-                logits_student = student_model(base_inputs.cuda())
-                loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
-                                                         F.softmax(logits_ta / T, dim=1))
-                student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
-                student_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
-                student_optimizer.step()
-
-                student_model.eval()
-                logits_student_test = student_model(arch_inputs.cuda())
-
-                student_prec1, student_prec5 = obtain_accuracy(
-                    logits_student_test.data, arch_targets.data, topk=(1, 5)
-                )
-
-                student_losses.update(student_loss.item(), base_inputs.size(0))
-                student_top1.update(student_prec1.item(), arch_inputs.size(0))
-                student_top5.update(student_prec5.item(), arch_inputs.size(0))
-
-            else:
-                student_model.train()
-                network.eval()
-                student_optimizer.zero_grad()
-                logits_ta = network(base_inputs.cuda())
-                logits_student = student_model(base_inputs.cuda())
-                loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
-                                                         F.softmax(logits_ta / T, dim=1))
-                student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
-                student_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
-                student_optimizer.step()
-
-                student_model.eval()
-                logits_student_test = student_model(arch_inputs.cuda())
-
-                student_prec1, student_prec5 = obtain_accuracy(
-                    logits_student_test.data, arch_targets.data, topk=(1, 5)
-                )
-
-                student_losses.update(student_loss.item(), base_inputs.size(0))
-                student_top1.update(student_prec1.item(), arch_inputs.size(0))
-                student_top5.update(student_prec5.item(), arch_inputs.size(0))
-
-        else:
-            if training_mode == 0:
-                network.train()
-                w_optimizer.zero_grad()
-                _, logits = network(base_inputs.cuda())
-                logits_teacher = teacher_model(base_inputs.cuda())
-                loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-                                                    F.softmax(logits_teacher / T, dim=1))
-                base_loss = (1 - lambda_) * criterion(logits, base_targets) + lambda_ * loss_KD_TA
-                base_loss.backward()
-                torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-
-                w_optimizer.step()
-
-                # record
-                base_prec1, base_prec5 = obtain_accuracy(
-                    logits.data, base_targets.data, topk=(1, 5)
-                )
-                base_losses.update(base_loss.item(), base_inputs.size(0))
-                base_top1.update(base_prec1.item(), base_inputs.size(0))
-                base_top5.update(base_prec5.item(), base_inputs.size(0))
-                # update the architecture-weight
-                a_optimizer.zero_grad()
-                _, logits = network(arch_inputs.cuda())
-
-                logits_teacher = teacher_model(arch_inputs.cuda())
-                loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-                                                    F.softmax(logits_teacher / T, dim=1))
-                arch_loss = (1 - lambda_) * criterion(logits, arch_targets) + lambda_ * loss_KD_TA
-                arch_loss.backward()
-                a_optimizer.step()
-                # record
-                arch_prec1, arch_prec5 = obtain_accuracy(
-                    logits.data, arch_targets.data, topk=(1, 5)
-                )
-                arch_losses.update(arch_loss.item(), arch_inputs.size(0))
-                arch_top1.update(arch_prec1.item(), arch_inputs.size(0))
-                arch_top5.update(arch_prec5.item(), arch_inputs.size(0))
-
-            elif training_mode == 1:
-                network.train()
-                w_optimizer.zero_grad()
-                _, logits = network(base_inputs.cuda())
-                logits_teacher = teacher_model(base_inputs.cuda())
-                loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-                                                    F.softmax(logits_teacher / T, dim=1))
-                base_loss = (1 - lambda_) * criterion(logits, base_targets) + lambda_ * loss_KD_TA
-                base_loss.backward()
-                torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
-
-                w_optimizer.step()
-
-                # record
-                base_prec1, base_prec5 = obtain_accuracy(
-                    logits.data, base_targets.data, topk=(1, 5)
-                )
-                base_losses.update(base_loss.item(), base_inputs.size(0))
-                base_top1.update(base_prec1.item(), base_inputs.size(0))
-                base_top5.update(base_prec5.item(), base_inputs.size(0))
-                # update the architecture-weight
-                a_optimizer.zero_grad()
-                _, logits = network(arch_inputs.cuda())
-
-                logits_teacher = teacher_model(arch_inputs.cuda())
-                loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-                                                    F.softmax(logits_teacher / T, dim=1))
-                arch_loss = (1 - lambda_) * criterion(logits, arch_targets) + lambda_ * loss_KD_TA
-                arch_loss.backward()
-                a_optimizer.step()
-                # record
-                arch_prec1, arch_prec5 = obtain_accuracy(
-                    logits.data, arch_targets.data, topk=(1, 5)
-                )
-                arch_losses.update(arch_loss.item(), arch_inputs.size(0))
-                arch_top1.update(arch_prec1.item(), arch_inputs.size(0))
-                arch_top5.update(arch_prec5.item(), arch_inputs.size(0))
-
-                # training student
-                student_model.train()
-                network.eval()
-                student_optimizer.zero_grad()
-                _, logits_ta = network(base_inputs.cuda())
-                logits_student = student_model(base_inputs.cuda())
-                loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
-                                                         F.softmax(logits_ta / T, dim=1))
-                student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
-                student_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
-                student_optimizer.step()
-
-                student_model.eval()
-                logits_student_test = student_model(arch_inputs.cuda())
-
-                student_prec1, student_prec5 = obtain_accuracy(
-                    logits_student_test.data, arch_targets.data, topk=(1, 5)
-                )
-
-                student_losses.update(student_loss.item(), base_inputs.size(0))
-                student_top1.update(student_prec1.item(), arch_inputs.size(0))
-                student_top5.update(student_prec5.item(), arch_inputs.size(0))
-
-            else:
-                # training student
-                student_model.train()
-                network.eval()
-                student_optimizer.zero_grad()
-                _, logits_ta = network(base_inputs.cuda())
-                logits_student = student_model(base_inputs.cuda())
-                loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
-                                                         F.softmax(logits_ta / T, dim=1))
-                student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
-                student_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
-                student_optimizer.step()
-
-                student_model.eval()
-                logits_student_test = student_model(arch_inputs.cuda())
-
-                student_prec1, student_prec5 = obtain_accuracy(
-                    logits_student_test.data, arch_targets.data, topk=(1, 5)
-                )
-
-                student_losses.update(student_loss.item(), base_inputs.size(0))
-                student_top1.update(student_prec1.item(), arch_inputs.size(0))
-                student_top5.update(student_prec5.item(), arch_inputs.size(0))
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if step % print_freq == 0 or step + 1 == len(xloader):
-            Sstr = (
-                "*SEARCH* "
-                + time_string()
-                + " [{:}][{:03d}/{:03d}]".format(epoch_str, step, len(xloader))
-            )
-            Tstr = "Time {batch_time.val:.2f} ({batch_time.avg:.2f}) Data {data_time.val:.2f} ({data_time.avg:.2f})".format(
-                batch_time=batch_time, data_time=data_time
-            )
-            Wstr = "Base [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
-                loss=base_losses, top1=base_top1, top5=base_top5
-            )
-            Astr = "Arch [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
-                loss=arch_losses, top1=arch_top1, top5=arch_top5
-            )
-
-            Studentstr = "Student [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
-                loss=student_losses, top1=student_top1, top5=student_top5
-            )
-
-            logger.log(Sstr + " " + Tstr + " " + Wstr + " " + Astr + " " + Studentstr)
-
-    return base_losses.avg, base_top1.avg, base_top5.avg, arch_losses.avg, arch_top1.avg, arch_top5.avg, student_losses.avg, student_top1.avg, student_top5.avg
+#
+#
+# def search_func(
+#     xloader,
+#     teacher_model,
+#     network,
+#     student_model,
+#     criterion,
+#     scheduler,
+#     w_optimizer,
+#     a_optimizer,
+#     student_optimizer,
+#     epoch_str,
+#     print_freq,
+#     logger,
+#     training_mode
+# ):
+#
+#     teacher_model.eval()
+#     data_time, batch_time = AverageMeter(), AverageMeter()
+#     base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
+#     arch_losses, arch_top1, arch_top5 = AverageMeter(), AverageMeter(), AverageMeter()
+#     student_losses, student_top1, student_top5 = AverageMeter(), AverageMeter(), AverageMeter()
+#     end = time.time()
+#     T = 5
+#     lambda_ = 0.5
+#
+#     for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
+#         xloader
+#     ):
+#         scheduler.update(None, 1.0 * step / len(xloader))
+#         base_targets = base_targets.cuda(non_blocking=True)
+#         arch_targets = arch_targets.cuda(non_blocking=True)
+#         # measure data loading time
+#         data_time.update(time.time() - end)
+#
+#         # pretraining TA
+#
+#
+#         if a_optimizer == None:
+#             if training_mode == 0:
+#                 network.train()
+#                 w_optimizer.zero_grad()
+#                 logits_ta = network(base_inputs.cuda())
+#                 logits_teacher = teacher_model(base_inputs.cuda())
+#                 loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits_ta / T, dim=1),
+#                                                     F.softmax(logits_teacher / T, dim=1))
+#                 TA_loss = (1 - lambda_) * criterion(logits_ta, base_targets) + lambda_ * loss_KD_TA
+#                 TA_loss.backward()
+#                 # torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
+#                 w_optimizer.step()
+#
+#                 network.eval()
+#                 logits_TA_test = network(arch_inputs.cuda())
+#
+#                 TA_prec1, TA_prec5 = obtain_accuracy(
+#                     logits_TA_test.data, arch_targets.data, topk=(1, 5)
+#                 )
+#
+#                 base_losses.update(TA_loss.item(), base_inputs.size(0))
+#                 base_top1.update(TA_prec1.item(), arch_inputs.size(0))
+#                 base_top5.update(TA_prec5.item(), arch_inputs.size(0))
+#
+#             elif training_mode == 1:
+#                 network.train()
+#                 w_optimizer.zero_grad()
+#                 logits_ta = network(base_inputs.cuda())
+#                 logits_teacher = teacher_model(base_inputs.cuda())
+#                 loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits_ta / T, dim=1),
+#                                                     F.softmax(logits_teacher / T, dim=1))
+#                 TA_loss = (1 - lambda_) * criterion(logits_ta, base_targets) + lambda_ * loss_KD_TA
+#                 TA_loss.backward()
+#                 # torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
+#                 w_optimizer.step()
+#
+#                 network.eval()
+#                 logits_TA_test = network(arch_inputs.cuda())
+#
+#                 TA_prec1, TA_prec5 = obtain_accuracy(
+#                     logits_TA_test.data, arch_targets.data, topk=(1, 5)
+#                 )
+#
+#                 base_losses.update(TA_loss.item(), base_inputs.size(0))
+#                 base_top1.update(TA_prec1.item(), arch_inputs.size(0))
+#                 base_top5.update(TA_prec5.item(), arch_inputs.size(0))
+#
+#                 # Training Student
+#                 student_model.train()
+#                 network.eval()
+#                 student_optimizer.zero_grad()
+#                 logits_ta = network(base_inputs.cuda())
+#                 logits_student = student_model(base_inputs.cuda())
+#                 loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
+#                                                          F.softmax(logits_ta / T, dim=1))
+#                 student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
+#                 student_loss.backward()
+#                 # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
+#                 student_optimizer.step()
+#
+#                 student_model.eval()
+#                 logits_student_test = student_model(arch_inputs.cuda())
+#
+#                 student_prec1, student_prec5 = obtain_accuracy(
+#                     logits_student_test.data, arch_targets.data, topk=(1, 5)
+#                 )
+#
+#                 student_losses.update(student_loss.item(), base_inputs.size(0))
+#                 student_top1.update(student_prec1.item(), arch_inputs.size(0))
+#                 student_top5.update(student_prec5.item(), arch_inputs.size(0))
+#
+#             else:
+#                 student_model.train()
+#                 network.eval()
+#                 student_optimizer.zero_grad()
+#                 logits_ta = network(base_inputs.cuda())
+#                 logits_student = student_model(base_inputs.cuda())
+#                 loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
+#                                                          F.softmax(logits_ta / T, dim=1))
+#                 student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
+#                 student_loss.backward()
+#                 # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
+#                 student_optimizer.step()
+#
+#                 student_model.eval()
+#                 logits_student_test = student_model(arch_inputs.cuda())
+#
+#                 student_prec1, student_prec5 = obtain_accuracy(
+#                     logits_student_test.data, arch_targets.data, topk=(1, 5)
+#                 )
+#
+#                 student_losses.update(student_loss.item(), base_inputs.size(0))
+#                 student_top1.update(student_prec1.item(), arch_inputs.size(0))
+#                 student_top5.update(student_prec5.item(), arch_inputs.size(0))
+#
+#         else:
+#             if training_mode == 0:
+#                 network.train()
+#                 w_optimizer.zero_grad()
+#                 _, logits = network(base_inputs.cuda())
+#                 logits_teacher = teacher_model(base_inputs.cuda())
+#                 loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
+#                                                     F.softmax(logits_teacher / T, dim=1))
+#                 base_loss = (1 - lambda_) * criterion(logits, base_targets) + lambda_ * loss_KD_TA
+#                 base_loss.backward()
+#                 torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
+#
+#                 w_optimizer.step()
+#
+#                 # record
+#                 base_prec1, base_prec5 = obtain_accuracy(
+#                     logits.data, base_targets.data, topk=(1, 5)
+#                 )
+#                 base_losses.update(base_loss.item(), base_inputs.size(0))
+#                 base_top1.update(base_prec1.item(), base_inputs.size(0))
+#                 base_top5.update(base_prec5.item(), base_inputs.size(0))
+#                 # update the architecture-weight
+#                 a_optimizer.zero_grad()
+#                 _, logits = network(arch_inputs.cuda())
+#
+#                 logits_teacher = teacher_model(arch_inputs.cuda())
+#                 loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
+#                                                     F.softmax(logits_teacher / T, dim=1))
+#                 arch_loss = (1 - lambda_) * criterion(logits, arch_targets) + lambda_ * loss_KD_TA
+#                 arch_loss.backward()
+#                 a_optimizer.step()
+#                 # record
+#                 arch_prec1, arch_prec5 = obtain_accuracy(
+#                     logits.data, arch_targets.data, topk=(1, 5)
+#                 )
+#                 arch_losses.update(arch_loss.item(), arch_inputs.size(0))
+#                 arch_top1.update(arch_prec1.item(), arch_inputs.size(0))
+#                 arch_top5.update(arch_prec5.item(), arch_inputs.size(0))
+#
+#             elif training_mode == 1:
+#                 network.train()
+#                 w_optimizer.zero_grad()
+#                 _, logits = network(base_inputs.cuda())
+#                 logits_teacher = teacher_model(base_inputs.cuda())
+#                 loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
+#                                                     F.softmax(logits_teacher / T, dim=1))
+#                 base_loss = (1 - lambda_) * criterion(logits, base_targets) + lambda_ * loss_KD_TA
+#                 base_loss.backward()
+#                 torch.nn.utils.clip_grad_norm_(network.parameters(), 5)
+#
+#                 w_optimizer.step()
+#
+#                 # record
+#                 base_prec1, base_prec5 = obtain_accuracy(
+#                     logits.data, base_targets.data, topk=(1, 5)
+#                 )
+#                 base_losses.update(base_loss.item(), base_inputs.size(0))
+#                 base_top1.update(base_prec1.item(), base_inputs.size(0))
+#                 base_top5.update(base_prec5.item(), base_inputs.size(0))
+#                 # update the architecture-weight
+#                 a_optimizer.zero_grad()
+#                 _, logits = network(arch_inputs.cuda())
+#
+#                 logits_teacher = teacher_model(arch_inputs.cuda())
+#                 loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
+#                                                     F.softmax(logits_teacher / T, dim=1))
+#                 arch_loss = (1 - lambda_) * criterion(logits, arch_targets) + lambda_ * loss_KD_TA
+#                 arch_loss.backward()
+#                 a_optimizer.step()
+#                 # record
+#                 arch_prec1, arch_prec5 = obtain_accuracy(
+#                     logits.data, arch_targets.data, topk=(1, 5)
+#                 )
+#                 arch_losses.update(arch_loss.item(), arch_inputs.size(0))
+#                 arch_top1.update(arch_prec1.item(), arch_inputs.size(0))
+#                 arch_top5.update(arch_prec5.item(), arch_inputs.size(0))
+#
+#                 # training student
+#                 student_model.train()
+#                 network.eval()
+#                 student_optimizer.zero_grad()
+#                 _, logits_ta = network(base_inputs.cuda())
+#                 logits_student = student_model(base_inputs.cuda())
+#                 loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
+#                                                          F.softmax(logits_ta / T, dim=1))
+#                 student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
+#                 student_loss.backward()
+#                 # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
+#                 student_optimizer.step()
+#
+#                 student_model.eval()
+#                 logits_student_test = student_model(arch_inputs.cuda())
+#
+#                 student_prec1, student_prec5 = obtain_accuracy(
+#                     logits_student_test.data, arch_targets.data, topk=(1, 5)
+#                 )
+#
+#                 student_losses.update(student_loss.item(), base_inputs.size(0))
+#                 student_top1.update(student_prec1.item(), arch_inputs.size(0))
+#                 student_top5.update(student_prec5.item(), arch_inputs.size(0))
+#
+#             else:
+#                 # training student
+#                 student_model.train()
+#                 network.eval()
+#                 student_optimizer.zero_grad()
+#                 _, logits_ta = network(base_inputs.cuda())
+#                 logits_student = student_model(base_inputs.cuda())
+#                 loss_KD_Student = T * T * nn.KLDivLoss()(F.log_softmax(logits_student / T, dim=1),
+#                                                          F.softmax(logits_ta / T, dim=1))
+#                 student_loss = (1 - lambda_) * criterion(logits_student, base_targets) + lambda_ * loss_KD_Student
+#                 student_loss.backward()
+#                 # torch.nn.utils.clip_grad_norm_(student_model.parameters(), 5)
+#                 student_optimizer.step()
+#
+#                 student_model.eval()
+#                 logits_student_test = student_model(arch_inputs.cuda())
+#
+#                 student_prec1, student_prec5 = obtain_accuracy(
+#                     logits_student_test.data, arch_targets.data, topk=(1, 5)
+#                 )
+#
+#                 student_losses.update(student_loss.item(), base_inputs.size(0))
+#                 student_top1.update(student_prec1.item(), arch_inputs.size(0))
+#                 student_top5.update(student_prec5.item(), arch_inputs.size(0))
+#
+#         # measure elapsed time
+#         batch_time.update(time.time() - end)
+#         end = time.time()
+#
+#         if step % print_freq == 0 or step + 1 == len(xloader):
+#             Sstr = (
+#                 "*SEARCH* "
+#                 + time_string()
+#                 + " [{:}][{:03d}/{:03d}]".format(epoch_str, step, len(xloader))
+#             )
+#             Tstr = "Time {batch_time.val:.2f} ({batch_time.avg:.2f}) Data {data_time.val:.2f} ({data_time.avg:.2f})".format(
+#                 batch_time=batch_time, data_time=data_time
+#             )
+#             Wstr = "Base [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
+#                 loss=base_losses, top1=base_top1, top5=base_top5
+#             )
+#             Astr = "Arch [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
+#                 loss=arch_losses, top1=arch_top1, top5=arch_top5
+#             )
+#
+#             Studentstr = "Student [Loss {loss.val:.3f} ({loss.avg:.3f})  Prec@1 {top1.val:.2f} ({top1.avg:.2f}) Prec@5 {top5.val:.2f} ({top5.avg:.2f})]".format(
+#                 loss=student_losses, top1=student_top1, top5=student_top5
+#             )
+#
+#             logger.log(Sstr + " " + Tstr + " " + Wstr + " " + Astr + " " + Studentstr)
+#
+#     return base_losses.avg, base_top1.avg, base_top5.avg, arch_losses.avg, arch_top1.avg, arch_top5.avg, student_losses.avg, student_top1.avg, student_top5.avg
 
 
 def main(xargs):
@@ -704,181 +704,162 @@ def main(xargs):
         config.epochs + config.warmup,
     )
 
-    teacher_model, teacher_optimizer = create_cnn_model(teacher_model, train_data, use_cuda=1)
-    if teacher_checkpoint:
-        teacher_model = load_checkpoint(teacher_model, teacher_checkpoint)
-    else:
-        teacher_model = train_teacher(search_loader, teacher_model, criterion, teacher_optimizer, logger, total_epoch, xargs.teacher_model)
+    teacher_model, teacher_optimizer, teacher_scheduler = create_cnn_model(teacher_model, train_data, total_epoch, teacher_checkpoint, use_cuda=1)
+    # if teacher_checkpoint:
+    # teacher_model = load_checkpoint(teacher_model, teacher_checkpoint)
+    # else:
+    #     teacher_model = train_teacher(search_loader, teacher_model, criterion, teacher_optimizer, logger, total_epoch, xargs.teacher_model)
 
-    if TA:
-        student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
-        if student_checkpoint:
-            student_model = load_checkpoint(student_model, student_checkpoint)
-            checkpoint = torch.load(student_checkpoint)
-            student_optimizer.load_state_dict(checkpoint['optimizer_dict'])
+    # if TA:
+    student_model, student_optimizer, student_scheduler = create_cnn_model(student, train_data, total_epoch, student_checkpoint, use_cuda=1)
+    # if student_checkpoint:
+    # student_model = load_checkpoint(student_model, student_checkpoint)
+    # checkpoint = torch.load(student_checkpoint)
+    # student_optimizer.load_state_dict(checkpoint['optimizer'])
 
-        if TA != 'GDAS':
-            network, w_optimizer = create_cnn_model(TA, train_data, use_cuda=1)
-            # w_optimizer = torch.optim.Adam(network .parameters(), lr=0.025, betas=(0.5, 0.999), weight_decay=1e-4)
-            a_optimizer = None
+    # if TA != 'GDAS':
+    #     network, w_optimizer = create_cnn_model(TA, train_data, use_cuda=1)
+    #     # w_optimizer = torch.optim.Adam(network .parameters(), lr=0.025, betas=(0.5, 0.999), weight_decay=1e-4)
+    #     a_optimizer = None
 
-        for epoch in range(start_epoch, total_epoch):
-            w_scheduler.update(epoch, 0.0)
-            need_time = "Time Left: {:}".format(
-                convert_secs2time(epoch_time.val * (total_epoch- epoch), True)
+    for epoch in range(start_epoch, total_epoch):
+        w_scheduler.update(epoch, 0.0)
+        need_time = "Time Left: {:}".format(
+            convert_secs2time(epoch_time.val * (total_epoch - epoch), True)
+        )
+        epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
+        search_model.set_tau(
+            xargs.tau_max - (xargs.tau_max - xargs.tau_min) * epoch / (total_epoch - 1)
+        )
+        logger.log(
+            "\n[Search the {:}-th epoch] {:}, tau={:}, LR={:}".format(
+                epoch_str, need_time, search_model.get_tau(), min(w_scheduler.get_lr())
             )
-            epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
-            search_model.set_tau(
-                xargs.tau_max - (xargs.tau_max - xargs.tau_min) * epoch / (total_epoch - 1)
+        )
+
+        search_w_loss, search_w_top1, search_w_top5, valid_a_loss, valid_a_top1, valid_a_top5 = search_func_modified(
+            search_loader,
+            teacher_model,
+            network,
+            student_model,
+            criterion,
+            w_scheduler,
+            w_optimizer,
+            a_optimizer,
+            epoch_str,
+            xargs.print_freq,
+            logger,
             )
+        # else:
+        #     Student_optimizer = None
+        #     training_mode = 0
+        #     search_w_loss, search_w_top1, search_w_top5, valid_a_loss, valid_a_top1, valid_a_top5, student_loss, student_top1, student_top5 = search_func(search_loader,
+        #                                                                                                                                                     teacher_model,
+        #                                                                                                                                                     network,
+        #                                                                                                                                                     student_model,
+        #                                                                                                                                                     criterion,
+        #                                                                                                                                                     w_scheduler,
+        #                                                                                                                                                     w_optimizer,
+        #                                                                                                                                                     a_optimizer,
+        #                                                                                                                                                     Student_optimizer,
+
+        search_time.update(time.time() - start_time)
+        logger.log(
+            "[{:}] searching : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%, time-cost={:.1f} s".format(
+                epoch_str, search_w_loss, search_w_top1, search_w_top5, search_time.sum
+            )
+        )
+        logger.log(
+            "[{:}] evaluate  : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%".format(
+                epoch_str, valid_a_loss, valid_a_top1, valid_a_top5
+            )
+        )
+
+        # logger.log(
+        #     "[{:}] student  : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%".format(
+        #         epoch_str, student_loss, student_top1, student_top5
+        #     )
+        # )
+
+        # check the best accuracy
+
+        # student_accuracy[epoch] = student_top1
+        # if student_top1 > student_accuracy['best']:
+        #     student_accuracy['best'] = student_top1
+
+        TA_accuracy[epoch] = search_w_top1
+        if search_w_top1 > TA_accuracy['best']:
+            TA_accuracy['best'] = search_w_top1
+
+        valid_accuracies[epoch] = valid_a_top1
+        if valid_a_top1 > valid_accuracies["best"]:
+            valid_accuracies["best"] = valid_a_top1
+            genotypes["best"] = search_model.genotype()
+            find_best = True
+        else:
+            find_best = False
+
+        genotypes[epoch] = search_model.genotype()
+        logger.log(
+            "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, genotypes[epoch])
+        )
+        # save checkpoint
+
+        save_path = save_checkpoint(
+            {
+                "epoch": epoch + 1,
+                "args": deepcopy(xargs),
+                "search_model": search_model.state_dict(),
+                "w_optimizer": w_optimizer.state_dict(),
+                "a_optimizer": a_optimizer.state_dict(),
+                "w_scheduler": w_scheduler.state_dict(),
+                "genotypes": genotypes,
+                "valid_accuracies": valid_accuracies,
+            },
+            model_base_path,
+            logger,
+        )
+        last_info = save_checkpoint(
+            {
+                "epoch": epoch + 1,
+                "args": deepcopy(args),
+                "last_checkpoint": save_path,
+            },
+            logger.path("info"),
+            logger,
+        )
+        if find_best:
             logger.log(
-                "\n[Search the {:}-th epoch] {:}, tau={:}, LR={:}".format(
-                    epoch_str, need_time, search_model.get_tau(), min(w_scheduler.get_lr())
+                "<<<--->>> The {:}-th epoch : find the highest validation accuracy : {:.2f}%.".format(
+                    epoch_str, valid_a_top1
                 )
             )
+            copy_checkpoint(model_base_path, model_best_path, logger)
+        with torch.no_grad():
+            logger.log("{:}".format(search_model.show_alphas()))
+        if api is not None:
+            logger.log("{:}".format(api.query_by_arch(genotypes[epoch], "200")))
+            # measure elapsed time
+        epoch_time.update(time.time() - start_time)
+        start_time = time.time()
 
-            if 'resnet' in TA:
-                adjust_learning_rate(w_optimizer, epoch, total_epoch)
-
-            if epoch < total_epoch-epoch_online:
-                training_mode = 0
-            elif epoch >= total_epoch - epoch_online and epoch < total_epoch:
-                training_mode = 1
-            else:
-                training_mode = 2
-
-            if TA == 'GDAS':
-                search_w_loss, search_w_top1, search_w_top5, valid_a_loss, valid_a_top1, valid_a_top5 = search_func_modified(
-                    search_loader,
-                    teacher_model,
-                    network,
-                    student_model,
-                    criterion,
-                    w_scheduler,
-                    w_optimizer,
-                    a_optimizer,
-                    epoch_str,
-                    xargs.print_freq,
-                    logger,
-                    )
-            else:
-                Student_optimizer = None
-                training_mode = 0
-                search_w_loss, search_w_top1, search_w_top5, valid_a_loss, valid_a_top1, valid_a_top5, student_loss, student_top1, student_top5 = search_func(search_loader,
-                                                                                                                                                                teacher_model,
-                                                                                                                                                                network,
-                                                                                                                                                                student_model,
-                                                                                                                                                                criterion,
-                                                                                                                                                                w_scheduler,
-                                                                                                                                                                w_optimizer,
-                                                                                                                                                                a_optimizer,
-                                                                                                                                                                Student_optimizer,
-                                                                                                                                                                epoch_str,
-                                                                                                                                                                xargs.print_freq,
-                                                                                                                                                                logger,
-                                                                                                                                                                training_mode
-                                                                                                                                                                )
-
-            search_time.update(time.time() - start_time)
-            logger.log(
-                "[{:}] searching : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%, time-cost={:.1f} s".format(
-                    epoch_str, search_w_loss, search_w_top1, search_w_top5, search_time.sum
-                )
-            )
-            logger.log(
-                "[{:}] evaluate  : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%".format(
-                    epoch_str, valid_a_loss, valid_a_top1, valid_a_top5
-                )
-            )
-
-            # logger.log(
-            #     "[{:}] student  : loss={:.2f}, accuracy@1={:.2f}%, accuracy@5={:.2f}%".format(
-            #         epoch_str, student_loss, student_top1, student_top5
-            #     )
-            # )
-
-            # check the best accuracy
-
-            # student_accuracy[epoch] = student_top1
-            # if student_top1 > student_accuracy['best']:
-            #     student_accuracy['best'] = student_top1
-
-            TA_accuracy[epoch] = search_w_top1
-            if search_w_top1 > TA_accuracy['best']:
-                TA_accuracy['best'] = search_w_top1
-
-            valid_accuracies[epoch] = valid_a_top1
-            if valid_a_top1 > valid_accuracies["best"]:
-                valid_accuracies["best"] = valid_a_top1
-                genotypes["best"] = search_model.genotype()
-                find_best = True
-            else:
-                find_best = False
-
-
-            if TA == 'GDAS':
-
-                genotypes[epoch] = search_model.genotype()
-                logger.log(
-                    "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, genotypes[epoch])
-                )
-                # save checkpoint
-
-                save_path = save_checkpoint(
-                    {
-                        "epoch": epoch + 1,
-                        "args": deepcopy(xargs),
-                        "search_model": search_model.state_dict(),
-                        "w_optimizer": w_optimizer.state_dict(),
-                        "a_optimizer": a_optimizer.state_dict(),
-                        "w_scheduler": w_scheduler.state_dict(),
-                        "genotypes": genotypes,
-                        "valid_accuracies": valid_accuracies,
-                    },
-                    model_base_path,
-                    logger,
-                )
-                last_info = save_checkpoint(
-                    {
-                        "epoch": epoch + 1,
-                        "args": deepcopy(args),
-                        "last_checkpoint": save_path,
-                    },
-                    logger.path("info"),
-                    logger,
-                )
-                if find_best:
-                    logger.log(
-                        "<<<--->>> The {:}-th epoch : find the highest validation accuracy : {:.2f}%.".format(
-                            epoch_str, valid_a_top1
-                        )
-                    )
-                    copy_checkpoint(model_base_path, model_best_path, logger)
-                with torch.no_grad():
-                    logger.log("{:}".format(search_model.show_alphas()))
-                if api is not None:
-                    logger.log("{:}".format(api.query_by_arch(genotypes[epoch], "200")))
-                # measure elapsed time
-            epoch_time.update(time.time() - start_time)
-            start_time = time.time()
-
-        if TA!='GDAS':
-            student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
-
-        student_best = -1
-        for epoch in range(start_epoch, total_epoch):
-            student_loss, student_top1, student_top5 = train_student(search_loader,
-                network,
-                student_model,
-                criterion,
-                student_optimizer,
-                epoch_str,
-                xargs.print_freq,
-                logger,)
-
-            student_accuracy[epoch] = student_top1
-            if student_top1 > student_accuracy['best']:
-                student_accuracy['best'] = student_top1
+        # if TA!='GDAS':
+        #     student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
+        #
+        # student_best = -1
+        # for epoch in range(start_epoch, total_epoch):
+        #     student_loss, student_top1, student_top5 = train_student(search_loader,
+        #         network,
+        #         student_model,
+        #         criterion,
+        #         student_optimizer,
+        #         epoch_str,
+        #         xargs.print_freq,
+        #         logger,)
+        #
+        #     student_accuracy[epoch] = student_top1
+        #     if student_top1 > student_accuracy['best']:
+        #         student_accuracy['best'] = student_top1
 
 
 
@@ -907,34 +888,34 @@ def main(xargs):
 
         logger.close()
 
-    else:
-        if student:
-            student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
-            student_best = -1
-            for epoch in range(start_epoch, total_epoch):
-                epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
-                student_loss, student_top1, student_top5 = train_student(search_loader,
-                                                                         teacher_model,
-                                                                         student_model,
-                                                                         criterion,
-                                                                         student_optimizer,
-                                                                         epoch_str,
-                                                                         xargs.print_freq,
-                                                                         logger, )
-
-                student_accuracy[epoch] = student_top1
-                if student_top1 > student_accuracy['best']:
-                    student_accuracy['best'] = student_top1
-
-            logger.log('----------------')
-            logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model, count_parameters_in_MB(teacher_model)))
-            logger.log('we used {:} as our TA with param size {:}'.format(TA, count_parameters_in_MB(network)))
-            logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
-            logger.log('we used {:} online epochs out of total epochs of {:}'.format(xargs.epoch_online, total_epoch))
-            logger.log('The best ACC of  : {:.2f}%'.format(TA_accuracy['best']))
-            logger.log('The best ACC of Student: {:.2f}%'.format(student_accuracy['best']))
-            logger.log('----------------')
-            logger.close()
+    # else:
+    #     if student:
+    #         student_model, student_optimizer = create_cnn_model(student, train_data, use_cuda=1)
+    #         student_best = -1
+    #         for epoch in range(start_epoch, total_epoch):
+    #             epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
+    #             student_loss, student_top1, student_top5 = train_student(search_loader,
+    #                                                                      teacher_model,
+    #                                                                      student_model,
+    #                                                                      criterion,
+    #                                                                      student_optimizer,
+    #                                                                      epoch_str,
+    #                                                                      xargs.print_freq,
+    #                                                                      logger, )
+    #
+    #             student_accuracy[epoch] = student_top1
+    #             if student_top1 > student_accuracy['best']:
+    #                 student_accuracy['best'] = student_top1
+    #
+    #         logger.log('----------------')
+    #         logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model, count_parameters_in_MB(teacher_model)))
+    #         logger.log('we used {:} as our TA with param size {:}'.format(TA, count_parameters_in_MB(network)))
+    #         logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
+    #         logger.log('we used {:} online epochs out of total epochs of {:}'.format(xargs.epoch_online, total_epoch))
+    #         logger.log('The best ACC of  : {:.2f}%'.format(TA_accuracy['best']))
+    #         logger.log('The best ACC of Student: {:.2f}%'.format(student_accuracy['best']))
+    #         logger.log('----------------')
+    #         logger.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("GDAS")
@@ -1004,9 +985,9 @@ if __name__ == "__main__":
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
     parser.add_argument("--teacher_model", default="resnet110", type=str, help="type of teacher mode")
     parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
-    parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='Teacher_model_resnet110_90.82%_06-14,15.pth.tar', type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default='Teacher_model_lenet_68.99%_06-17,14.pth.tar', type=str,
+    parser.add_argument("--student_model", default='plane2', type=str, help="type of student mode")
+    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53972-best_plane2_69.40%_07-07,03.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()

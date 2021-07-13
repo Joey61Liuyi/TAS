@@ -335,7 +335,7 @@ if __name__ == "__main__":
     args.teacher_model = 'resnet110'
     args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
 
-    args.student_model = 'plane2'
+    args.student_model = 'lenet'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-76445-basic.pth'
@@ -349,12 +349,24 @@ if __name__ == "__main__":
     args.print_freq = 500
     args.print_freq_eval = 1000
 
+    # main(args)
+    #
+    # model_list = ['resnet14', 'resnet8', 'plane10', 'plane8', 'plane6', 'plane4']
 
-    main(args)
+    model_list = []
+    model_list.append(('resnet14', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-12467-bestresnet110_resnet14_90.03%_07-12,06.pth'))
+    model_list.append(('resnet8', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-38001-bestresnet110_resnet8_85.77%_07-12,09.pth'))
+    model_list.append(('plane10',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85270-bestresnet110_plane10_92.43%_07-12,11.pth'))
+    model_list.append(('plane8',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-51223-bestresnet110_plane8_89.09%_07-12,14.pth'))
+    model_list.append(('plane6',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-93473-bestresnet110_plane6_86.63%_07-12,17.pth'))
+    model_list.append(('plane4',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-79447-bestresnet110_plane4_81.30%_07-12,19.pth'))
 
-    model_list = ['resnet8', 'plane10', 'plane8', 'plane6', 'plane4']
-
-    for one in model_list:
+    for (one, two) in model_list:
         args.rand_seed = -1
-        args.student_model = one
+        args.teacher_model = one
+        args.teacher_path = two
         main(args)
