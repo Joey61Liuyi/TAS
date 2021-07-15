@@ -874,18 +874,18 @@ def main(xargs):
             logger.log("{:}".format(api.query_by_arch(genotypes[epoch - 1], "200")))
 
 
-        logger.log('----------------')
+    logger.log('----------------')
 
-        logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model, count_parameters_in_MB(teacher_model)))
-        logger.log('we used {:} as our TA with param size {:}'.format(TA, count_parameters_in_MB(network)))
-        logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
+    logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model, count_parameters_in_MB(teacher_model)))
+    logger.log('we used {:} as our TA with param size {:}'.format(TA, count_parameters_in_MB(network)))
+    logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
 
-        logger.log('we used {:} online epochs out of total epochs of {:}'.format(xargs.epoch_online, total_epoch))
-        logger.log('The best ACC of TA: {:.2f}%'.format(TA_accuracy['best']))
-        logger.log('The best ACC of Student: {:.2f}%'.format(student_accuracy['best']))
-        logger.log('----------------')
+    logger.log('we used {:} online epochs out of total epochs of {:}'.format(xargs.epoch_online, total_epoch))
+    logger.log('The best ACC of TA: {:.2f}%'.format(TA_accuracy['best']))
+    logger.log('The best ACC of Student: {:.2f}%'.format(student_accuracy['best']))
+    logger.log('----------------')
 
-        logger.close()
+    logger.close()
 
     # else:
     #     if student:
@@ -946,7 +946,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model_config",
-        default='../../configs/search-archs/GDASFRC-NASNet-CIFAR.config',
+        default='../../configs/search-archs/GDAS-NASNet-CIFAR.config',
         type=str,
         help="The path of the model configuration. When this arg is set, it will cover max_nodes / channels / num_cells.",
     )

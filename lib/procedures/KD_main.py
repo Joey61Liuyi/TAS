@@ -110,9 +110,9 @@ def procedure(
             optimizer.zero_grad()
 
         try:
-            features, logits = network(inputs)
+            features, logits = network(inputs.cuda())
         except:
-            logits = network(inputs)
+            logits = network(inputs.cuda())
 
 
         if isinstance(logits, list):
@@ -132,7 +132,11 @@ def procedure(
 
         if teacher_model:
             teacher_model.eval()
-            teacher_logits = teacher_model(inputs.cuda())
+            try:
+                teacher_features, teacher_logits = teacher_model(inputs.cuda())
+            except:
+                teacher_logits = teacher_model(inputs.cuda())
+
             loss_KD = T*T*nn.KLDivLoss()(F.log_softmax(logits / T, dim=1), F.softmax(teacher_logits / T, dim=1))
 
         else:
