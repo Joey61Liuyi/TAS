@@ -61,6 +61,7 @@ def main(args):
     total_epoch = optim_config.epochs + optim_config.warmup
 
     optimizer = None
+    genotypes = None
 
     if args.teacher_model:
         if args.teacher_model == "normal":
@@ -80,6 +81,10 @@ def main(args):
         base_model = obtain_nas_infer_model(model_config, args.extra_model_path)
     elif args.student_model == "autodl-searched":
         base_model = obtain_model(model_config, args.extra_model_path)
+        checkpoint = torch.load(args.extra_model_path)
+        genotypes = checkpoint["genotypes"]
+
+
     else:
         base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
         # raise ValueError("invalid model-source : {:}".format(args.student_model))
@@ -293,23 +298,46 @@ def main(args):
             torch.cuda.empty_cache()
 
         # save checkpoint
-        save_path = save_checkpoint(
-            {
-                "epoch": epoch,
-                "args": deepcopy(args),
-                "max_bytes": deepcopy(max_bytes),
-                "FLOP": flop,
-                "PARAM": param,
-                "valid_accuracies": deepcopy(valid_accuracies),
-                "model-config": model_config._asdict(),
-                "optim-config": optim_config._asdict(),
-                "base-model": base_model.state_dict(),
-                "scheduler": scheduler.state_dict(),
-                "optimizer": optimizer.state_dict(),
-            },
-            model_base_path,
-            logger,
-        )
+
+        if genotypes:
+            save_path = save_checkpoint(
+                {
+                    "epoch": epoch,
+                    "args": deepcopy(args),
+                    "max_bytes": deepcopy(max_bytes),
+                    "FLOP": flop,
+                    "PARAM": param,
+                    "valid_accuracies": deepcopy(valid_accuracies),
+                    "model-config": model_config._asdict(),
+                    "optim-config": optim_config._asdict(),
+                    "base-model": base_model.state_dict(),
+                    "scheduler": scheduler.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "genotypes": genotypes
+                },
+                model_base_path,
+                logger,
+            )
+
+        else:
+            save_path = save_checkpoint(
+                {
+                    "epoch": epoch,
+                    "args": deepcopy(args),
+                    "max_bytes": deepcopy(max_bytes),
+                    "FLOP": flop,
+                    "PARAM": param,
+                    "valid_accuracies": deepcopy(valid_accuracies),
+                    "model-config": model_config._asdict(),
+                    "optim-config": optim_config._asdict(),
+                    "base-model": base_model.state_dict(),
+                    "scheduler": scheduler.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                },
+                model_base_path,
+                logger,
+            )
+
         if find_best:
 
             tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
