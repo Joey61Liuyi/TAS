@@ -381,10 +381,10 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar100'
     args.data_path = '../data'
-    args.teacher_model = None
-    args.teacher_path = None
+    args.teacher_model = 'resnet110'
+    args.teacher_path = '.\output/nas-infer\cifar10-BS96-gdas_serached\checkpoint/seed-58814-bestNone_resnet110_64.28%_07-23,20.pth'
 
-    args.student_model = 'googlenet'
+    args.student_model = 'plane10'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     # args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-48469-basic.pth'
@@ -401,7 +401,7 @@ if __name__ == "__main__":
     main(args)
 
     #
-    # model_list = ['resnet14', 'resnet8', 'plane10', 'plane8', 'plane6', 'plane4']
+    # model_list = ['resnet26', 'plane8']
 
     # model_list = []
     # model_list.append(('resnet14', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-12467-bestresnet110_resnet14_90.03%_07-12,06.pth'))
@@ -411,12 +411,11 @@ if __name__ == "__main__":
     # model_list.append(('plane8',
     #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-51223-bestresnet110_plane8_89.09%_07-12,14.pth'))
     # model_list.append(('plane6',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-93473-bestresnet110_plane6_86.63%_07-12,17.pth'))
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-27970-bestvgg19_plane6_66.20%_07-20,23.pth'))
     # model_list.append(('plane4',
     #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-79447-bestresnet110_plane4_81.30%_07-12,19.pth'))
-    #
-    # for (one, two) in model_list:
+    # #
+    # for one in model_list:
     #     args.rand_seed = -1
-    #     args.teacher_model = one
-    #     args.teacher_path = two
+    #     args.student_model = one
     #     main(args)

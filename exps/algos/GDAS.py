@@ -922,14 +922,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset",
         type=str,
-        default= 'cifar10',
+        default= 'cifar100',
         choices=["cifar10", "cifar100", "ImageNet16-120"],
         help="Choose between Cifar10/100 and ImageNet-16.",
     )
     # channels and number-of-cells
     parser.add_argument("--search_space_name", default='darts', type=str, help="The search space name.")
     parser.add_argument("--max_nodes", type=int, help="The maximum number of nodes.")
-    parser.add_argument("--channel", type=int, help="The number of channels.")
+    parser.add_argument("--channel", type=int, help="The number"
+                                                    " of channels.")
     parser.add_argument(
         "--num_cells", type=int, help="The number of cells in one "
                                       "。stage."
@@ -976,22 +977,26 @@ if __name__ == "__main__":
         "--save_dir", default='./output/search-cell-dar/GDAS-cifar10-BN1', type=str, help="Folder to save checkpoints and log."
     )
     parser.add_argument(
+
+
         "--arch_nas_dataset",
         type=str,
+
+
         help="The path to load the architecture dataset   (tiny-nas-benchmark).",
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="resnet110", type=str, help="type of teacher mode")
+    parser.add_argument("--teacher_model", default="vgg19", type=str, help="type of teacher mode")
     parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
-    parser.add_argument("--student_model", default='plane2', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth', type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53972-best_plane2_69.40%_07-07,03.pth', type=str,
+    parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
+    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-71956-bestNone_vgg19_68.08%_07-19,06.pth', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-62735-bestNone_lenet_33.10%_07-20,01.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
-        args.rand_seed = random.randint(1, 100000)
+        args.rand_seed = 99999
     # #
     # #
     # teacher_models = ['resnet110', 'resnet56', 'resnet44', 'resnet32', 'resnet26', 'resnet20', 'resnet14', 'resnet8', 'plane10', 'plane8', 'plane  6','plane4','plane2' ]
