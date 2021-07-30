@@ -345,7 +345,7 @@ def main(args):
 
         if find_best:
 
-            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
+            tep_info = '{}layers_{}_{}_{:.2f}%_{}'.format(model_config['layers'], args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
             model_best_path_new = list(str(model_best_path))
             model_best_path_new.insert(-4, tep_info)
             model_best_path_new = ''.join(model_best_path_new)
@@ -382,17 +382,17 @@ if __name__ == "__main__":
     args.dataset = 'cifar100'
     args.data_path = '../data'
     args.teacher_model = 'resnet110'
-    args.teacher_path = '.\output/nas-infer\cifar10-BS96-gdas_serached\checkpoint/seed-58814-bestNone_resnet110_64.28%_07-23,20.pth'
+    args.teacher_path = '.\output/nas-infer\cifar10-BS96-gdas_serached\checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
 
-    args.student_model = 'plane10'
+    args.student_model = 'autodl-searched'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    # args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-48469-basic.pth'
-    args.extra_model_path = None
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-34326-basic.pth'
+    # args.extra_model_path = None
     args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
-    args.batch_size = 48
+    args.batch_size = 24
     args.rand_seed = -1
     args.workers = 4
     args.eval_frequency = 1
@@ -404,18 +404,22 @@ if __name__ == "__main__":
     # model_list = ['resnet26', 'plane8']
 
     # model_list = []
-    # model_list.append(('resnet14', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-12467-bestresnet110_resnet14_90.03%_07-12,06.pth'))
-    # model_list.append(('resnet8', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-38001-bestresnet110_resnet8_85.77%_07-12,09.pth'))
-    # model_list.append(('plane10',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85270-bestresnet110_plane10_92.43%_07-12,11.pth'))
-    # model_list.append(('plane8',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-51223-bestresnet110_plane8_89.09%_07-12,14.pth'))
-    # model_list.append(('plane6',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-27970-bestvgg19_plane6_66.20%_07-20,23.pth'))
-    # model_list.append(('plane4',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-79447-bestresnet110_plane4_81.30%_07-12,19.pth'))
+    # model_list.append(('resnet56', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-93456-bestresnet110_resnet56_62.93%_07-24,15.pth'))
+    # model_list.append(('resnet44', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-18404-bestresnet110_resnet44_61.61%_07-24,21.pth'))
+    # # model_list.append(('resnet20', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-64109-bestresnet110_resnet20_58.40%_07-24,14.pth'))
+    # # model_list.append(('resnet14', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-41657-bestresnet110_resnet14_56.09%_07-24,18.pth'))
+    # # model_list.append(('resnet8', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-25139-bestresnet110_resnet8_49.95%_07-24,23.pth'))
+    # # model_list.append(('plane10',
+    # #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-68528-bestresnet110_plane10_65.20%_07-26,13.pth'))
+    # # model_list.append(('plane8',
+    # #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-27100-bestresnet110_plane8_66.07%_07-26,18.pth'))
+    # # model_list.append(('plane6',
+    # #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-16288-bestresnet110_plane6_65.86%_07-26,19.pth'))
+    # # model_list.append(('plane4',
+    # #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-50708-bestresnet110_plane4_60.83%_07-24,14.pth'))
     # #
-    # for one in model_list:
+    # for (one, two) in model_list:
     #     args.rand_seed = -1
-    #     args.student_model = one
+    #     args.teacher_model = one
+    #     args.teacher_path = two
     #     main(args)

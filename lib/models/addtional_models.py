@@ -339,7 +339,7 @@ def vgg16_cifar(**kwargs):
 
 
 def vgg19_cifar(**kwargs):
-    model = VGG(get_vgg_layers(vgg19_config, batch_norm=True), 100)
+    model = VGG(get_vgg_layers(vgg19_config, batch_norm=True), kwargs['num_classes'])
     return model
 
 
