@@ -272,9 +272,9 @@ def resnet56_cifar(**kwargs):
 
 
 def resnet110_cifar(**kwargs):
-    # model = ResNet_Cifar(BasicBlock, [18, 18, 18], **kwargs)
+    model = ResNet_Cifar(BasicBlock, [18, 18, 18], **kwargs)
 
-    model = ResNet(depth=110)
+    # model = ResNet(depth=110)
     return model
 
 
@@ -339,7 +339,7 @@ def vgg16_cifar(**kwargs):
 
 
 def vgg19_cifar(**kwargs):
-    model = VGG(get_vgg_layers(vgg19_config, batch_norm=True), class_num)
+    model = VGG(get_vgg_layers(vgg19_config, batch_norm=True), kwargs['num_classes'])
     return model
 
 
@@ -907,10 +907,12 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
         checkpoint = torch.load(model_path)
         if 'base-model' in checkpoint:
             model.load_state_dict(checkpoint['base-model'])
-        else:
+        elif 'state_dict' in checkpoint:
             model.load_state_dict(checkpoint['state_dict'])
-        scheduler.load_state_dict(checkpoint['scheduler'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        if 'scheduler' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler'])
+        if 'optimizer' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer'])
 
     return model, optimizer, scheduler
 

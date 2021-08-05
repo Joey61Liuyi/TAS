@@ -946,7 +946,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--model_config",
-        default='../../configs/search-archs/GDAS-NASNet-CIFAR.config',
+        default='../../configs/search-archs/GDASFRC-NASNet-CIFAR.config',
         type=str,
         help="The path of the model configuration. When this arg is set, it will cover max_nodes / channels / num_cells.",
     )

@@ -3,7 +3,6 @@
 #####################################################
 import sys, time, torch, random, argparse
 from PIL import ImageFile
-
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 from copy import deepcopy
 from pathlib import Path
@@ -379,15 +378,14 @@ def main(args):
 
 if __name__ == "__main__":
     args = obtain_args()
-    args.dataset = 'cifar100'
+    args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.teacher_model = None
-    args.teacher_path = None
-
-    args.student_model = 'googlenet'
+    # args.teacher_model = 'googlenet'
+    # args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/GoogLeNet_92_93.pth'
+    args.student_model = 'shufflenetg3'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    # args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-48469-basic.pth'
+    # args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-4185-basic.pth'
     args.extra_model_path = None
     args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
@@ -398,25 +396,24 @@ if __name__ == "__main__":
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    main(args)
+    # main(args)
 
     #
-    # model_list = ['resnet14', 'resnet8', 'plane10', 'plane8', 'plane6', 'plane4']
+    # model_list = ['resnet14', 'resnet8']
 
-    # model_list = []
-    # model_list.append(('resnet14', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-12467-bestresnet110_resnet14_90.03%_07-12,06.pth'))
-    # model_list.append(('resnet8', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-38001-bestresnet110_resnet8_85.77%_07-12,09.pth'))
-    # model_list.append(('plane10',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85270-bestresnet110_plane10_92.43%_07-12,11.pth'))
-    # model_list.append(('plane8',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-51223-bestresnet110_plane8_89.09%_07-12,14.pth'))
-    # model_list.append(('plane6',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-93473-bestresnet110_plane6_86.63%_07-12,17.pth'))
-    # model_list.append(('plane4',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-79447-bestresnet110_plane4_81.30%_07-12,19.pth'))
-    #
-    # for (one, two) in model_list:
-    #     args.rand_seed = -1
-    #     args.teacher_model = one
-    #     args.teacher_path = two
-    #     main(args)
+    model_list = []
+    model_list.append(('plane10',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-36339-best_plane10_91.42%_07-06,23.pth'))
+    model_list.append(('plane8',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-81378-best_plane8_88.18%_07-07,00.pth'))
+    model_list.append(('plane6',
+                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-87884-best_plane6_86.73%_07-07,01.pth'))
+    model_list.append(('plane4',
+                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-70133-best_plane4_80.58%_07-07,02.pth'))
+
+    for model in model_list:
+        args.rand_seed = -1
+        args.teacher_model = model[0]
+        args.teacher_path = model[1]
+        main(args)
+

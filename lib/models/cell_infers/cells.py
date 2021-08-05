@@ -68,7 +68,8 @@ class NASNetInferCell(nn.Module):
     if not reduction:
       nodes, concats = genotype['normal'], genotype['normal_concat']
     else:
-      nodes, concats = genotype['reduce'], genotype['reduce_concat']
+      # nodes, concats = genotype['reduce'], genotype['reduce_concat']
+      nodes, concats = genotype['normal'], genotype['normal_concat']
     self._multiplier = len(concats)
     self._concats = concats
     self._steps = len(nodes)

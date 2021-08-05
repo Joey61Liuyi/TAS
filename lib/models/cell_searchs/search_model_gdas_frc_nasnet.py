@@ -31,7 +31,9 @@ class NASNetworkGDAS_FRC(nn.Module):
     self.cells = nn.ModuleList()
     for index, (C_curr, reduction) in enumerate(zip(layer_channels, layer_reductions)):
       if reduction:
-        cell = RAW_OP_CLASSES['gdas_reduction'](C_prev_prev, C_prev, C_curr, reduction_prev, affine, track_running_stats)
+        # cell = RAW_OP_CLASSES['gdas_reduction'](C_prev_prev, C_prev, C_curr, reduction_prev, affine, track_running_stats)
+        cell = SearchCell(search_space, steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev,
+                          affine, track_running_stats)
       else:
         cell = SearchCell(search_space, steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev, affine, track_running_stats)
       if num_edge is None: num_edge, edge2index = cell.num_edges, cell.edge2index
@@ -114,7 +116,8 @@ class NASNetworkGDAS_FRC(nn.Module):
     s0 = s1 = self.stem(inputs)
     for i, cell in enumerate(self.cells):
       if cell.reduction:
-        s0, s1 = s1, cell(s0, s1)
+        # s0, s1 = s1, cell(s0, s1)
+        s0, s1 = s1, cell.forward_gdas(s0, s1, hardwts, index)
       else: 
         s0, s1 = s1, cell.forward_gdas(s0, s1, hardwts, index)
     out = self.lastact(s1)
