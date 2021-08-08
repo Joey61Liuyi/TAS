@@ -977,26 +977,22 @@ if __name__ == "__main__":
         "--save_dir", default='./output/search-cell-dar/GDAS-cifar10-BN1', type=str, help="Folder to save checkpoints and log."
     )
     parser.add_argument(
-
-
         "--arch_nas_dataset",
         type=str,
-
-
         help="The path to load the architecture dataset   (tiny-nas-benchmark).",
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="vgg19", type=str, help="type of teacher mode")
+    parser.add_argument("--teacher_model", default="googlenet", type=str, help="type of teacher mode")
     parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
     parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-71956-bestNone_vgg19_68.08%_07-19,06.pth', type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-62735-bestNone_lenet_33.10%_07-20,01.pth', type=str,
+    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/googlenet.pth', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-5586-best5_layers_None_shufflenetg3_57.38%_08-05,00.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
-        args.rand_seed = 99999
+        args.rand_seed = random.randint(1, 100000)
     # #
     # #
     # teacher_models = ['resnet110', 'resnet56', 'resnet44', 'resnet32', 'resnet26', 'resnet20', 'resnet14', 'resnet8', 'plane10', 'plane8', 'plane  6','plane4','plane2' ]

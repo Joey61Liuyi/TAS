@@ -943,34 +943,38 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
         alexnet_model = AlexNet(num_classes)
         model = alexnet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        scheduler = ExponentialLR(optimizer, 10, total_epochs, last_epoch=-1)
+        # scheduler = ExponentialLR(optimizer, 10, total_epochs, last_epoch=-1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[total_epochs*3/8, total_epochs*3/4, total_epochs], gamma=0.5)
 
     elif is_resnet(name) == 'lenet':
         lenet_model = LeNet()
         model = lenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
     elif is_resnet(name) == 'googlenet':
         googlenet_model = GoogLeNet()
         model = googlenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs*3 / 8, total_epochs * 3 / 4, total_epochs], gamma=0.5)
     elif is_resnet(name) == 'mobilenet':
         mobilenet_model = MobileNet()
         model = mobilenet_model
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                     weight_decay=0)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
-                                                        gamma=0.1, last_epoch=-1)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs*3 / 8, total_epochs * 3 / 4, total_epochs], gamma=0.5)
     elif is_resnet(name) == 'squeezenet':
         squeezenet_model = SqueezeNet()
         model = squeezenet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
-                                                        gamma=0.1, last_epoch=-1)
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
     elif is_resnet(name) == 'shufflenet':
         shufflenet_type = name[10:]
         if shufflenet_type == 'g2' or shufflenet_type == 'G2':
@@ -978,28 +982,32 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
         else:
             shufflenet_model = ShuffleNetG3()
         model = shufflenet_model
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
-                                                        gamma=0.1, last_epoch=-1)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs*3 / 8, total_epochs * 3 / 4, total_epochs], gamma=0.5)
 
     elif is_resnet(name) == 'efficientnetb0':
         efficientnetb0_model = EfficientNetB0()
         model = efficientnetb0_model
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.0001, momentum=0.9, weight_decay=5e-4)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
         # Assuming optimizer uses lr = 0.05 for all groups
         # lr = 0.05     if epoch < 30
         # lr = 0.005    if 30 <= epoch < 60
         # lr = 0.0005   if 60 <= epoch < 90
         # ...
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.1)
-
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
     # copy to cuda if activated
     if use_cuda:
         model = model.cuda()
 
     if model_path:
+        print(model_path)
         checkpoint = torch.load(model_path)
+
+        pass
+
         if 'base-model' in checkpoint:
             model.load_state_dict(checkpoint['base-model'])
         elif 'state_dict' in checkpoint:
@@ -1010,6 +1018,90 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
             optimizer.load_state_dict(checkpoint['optimizer'])
 
     return model, optimizer, scheduler
+
+
+
+
+class Transition(nn.Module):
+    def __init__(self, in_planes, out_planes):
+        super(Transition, self).__init__()
+        self.bn = nn.BatchNorm2d(in_planes)
+        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=1, bias=False)
+
+    def forward(self, x):
+        x = self.conv(F.relu(self.bn(x)))
+        x = F.avg_pool2d(x, 2)
+        return x
+
+class DenseNet(nn.Module):
+    def __init__(self, block, num_block, growth_rate=12, reduction=0.5, num_classes=10):
+        super(DenseNet, self).__init__()
+        self.growth_rate = growth_rate
+
+        num_planes = 2 * growth_rate
+        self.conv1 = nn.Conv2d(3, num_planes, kernel_size=3, padding=1, bias=False)
+
+        self.dense1 = self._make_dense_layers(block, num_planes, num_block[0])
+        num_planes += num_block[0] * growth_rate
+        out_planes = int(math.floor(num_planes * reduction))
+        self.trans1 = Transition(num_planes, out_planes)
+        num_planes = out_planes
+
+        self.dense2 = self._make_dense_layers(block, num_planes, num_block[1])
+        num_planes += num_block[1] * growth_rate
+        out_planes = int(math.floor(num_planes * reduction))
+        self.trans2 = Transition(num_planes, out_planes)
+        num_planes = out_planes
+
+        self.dense3 = self._make_dense_layers(block, num_planes, num_block[2])
+        num_planes += num_block[2] * growth_rate
+        out_planes = int(math.floor(num_planes * reduction))
+        self.trans3 = Transition(num_planes, out_planes)
+        num_planes = out_planes
+
+        self.dense4 = self._make_dense_layers(block, num_planes, num_block[3])
+        num_planes += num_block[3] * growth_rate
+
+        self.bn = nn.BatchNorm2d(num_planes)
+        self.linear = nn.Linear(num_planes, num_classes)
+
+    def _make_dense_layers(self, block, in_planes, num_block):
+        layers = []
+        for i in range(num_block):
+            layers.append(block(in_planes, self.growth_rate))
+            in_planes += self.growth_rate
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.trans1(self.dense1(x))
+        x = self.trans2(self.dense2(x))
+        x = self.trans3(self.dense3(x))
+        x = self.dense4(x)
+        x = F.avg_pool2d(F.relu(self.bn(x)), 4)
+        x = x.view(x.size(0), -1)
+        x = self.linear(x)
+        return x
+
+
+def DenseNet121():
+    return DenseNet(Bottleneck, [6, 12, 24, 16], growth_rate=32)
+
+
+def DenseNet169():
+    return DenseNet(Bottleneck, [6, 12, 32, 32], growth_rate=32)
+
+
+def DenseNet201():
+    return DenseNet(Bottleneck, [6, 12, 48, 32], growth_rate=32)
+
+
+def DenseNet161():
+    return DenseNet(Bottleneck, [6, 12, 36, 24], growth_rate=48)
+
+
+def densenet_cifar():
+    return DenseNet(Bottleneck, [6, 12, 24, 16], growth_rate=12)
 
 
 # def load_checkpoint(model, checkpoint_path):

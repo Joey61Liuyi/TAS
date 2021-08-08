@@ -381,8 +381,8 @@ if __name__ == "__main__":
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    # args.teacher_model = 'googlenet'
-    # args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/GoogLeNet_92_93.pth'
+    args.teacher_model = None
+    args.teacher_path = None
     args.student_model = 'shufflenetg3'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
@@ -397,24 +397,24 @@ if __name__ == "__main__":
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    # main(args)
+    main(args)
 
     #
     # model_list = ['resnet14', 'resnet8']
 
-    model_list = []
-    model_list.append(('plane10',
-                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-36339-best_plane10_91.42%_07-06,23.pth'))
-    model_list.append(('plane8',
-                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-81378-best_plane8_88.18%_07-07,00.pth'))
-    model_list.append(('plane6',
-                       './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-87884-best_plane6_86.73%_07-07,01.pth'))
-    model_list.append(('plane4',
-                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-70133-best_plane4_80.58%_07-07,02.pth'))
-
-    for model in model_list:
-        args.rand_seed = -1
-        args.teacher_model = model[0]
-        args.teacher_path = model[1]
-        main(args)
-
+    # model_list = []
+    # model_list.append(('plane10',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-36339-best_plane10_91.42%_07-06,23.pth'))
+    # model_list.append(('plane8',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-81378-best_plane8_88.18%_07-07,00.pth'))
+    # model_list.append(('plane6',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-87884-best_plane6_86.73%_07-07,01.pth'))
+    # model_list.append(('plane4',
+    #                './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-70133-best_plane4_80.58%_07-07,02.pth'))
+    #
+    # for model in model_list:
+    #     args.rand_seed = -1
+    #     args.teacher_model = model[0]
+    #     args.teacher_path = model[1]
+    #     main(args)
+    #

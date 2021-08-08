@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     models = ['googlenet', 'resnet110', 'resnet56', 'resnet44', 'resnet32', 'resnet26', 'resnet20', 'resnet14', 'resnet8', 'plane10',
              'plane8', 'plane6', 'plane4', 'plane2', 'vgg19', 'vgg16', 'vgg13', 'vgg11', 'alexnet', 'lenet',
-             'squeezenet', 'shufflenetg2', 'shufflenetg3']
+             'squeezenet', 'shufflenetg2', 'shufflenetg3', 'efficientnetb0']
 
     train_data, valid_data, xshape, class_num = get_datasets(
         args.dataset, args.data_path, args.cutout_length
