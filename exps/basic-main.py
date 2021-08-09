@@ -304,6 +304,18 @@ def main(args):
 
         # save checkpoint
 
+        if 'autodl-searched' in args.teacher_model or 'autodl-searched' in args.student_model:
+
+            tep_info = '{}_{}_{:.2f}%_{}layer_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], model_config.layers, time.strftime("%m-%d,%H", time.localtime()))
+
+        else:
+            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
+
+        model_base_path = tep_info + "basic-seed-{:}.pth".format(args.rand_seed)
+        model_base_path = logger.model_dir / model_base_path
+        model_best_path = tep_info + "best-seed-{:}.pth".format(args.rand_seed)
+        model_best_path = logger.model_dir / model_best_path
+
         if genotypes:
             save_path = save_checkpoint(
                 {
@@ -344,13 +356,7 @@ def main(args):
             )
 
         if find_best:
-
-            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
-            model_best_path_new = list(str(model_best_path))
-            model_best_path_new.insert(-4, tep_info)
-            model_best_path_new = ''.join(model_best_path_new)
-            model_best_path_new = Path(model_best_path_new)
-            copy_checkpoint(model_base_path, model_best_path_new, logger)
+            copy_checkpoint(model_base_path, model_best_path, logger)
         last_info = save_checkpoint(
             {
                 "epoch": epoch,

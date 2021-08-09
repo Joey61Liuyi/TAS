@@ -675,7 +675,7 @@ def main(xargs):
     model_base_path = tep_info + "basic-seed-{:}.pth".format(args.rand_seed)
     model_base_path = logger.model_dir / model_base_path
     model_best_path = tep_info + "best-seed-{:}.pth".format(args.rand_seed)
-    model_best_path = logger.model_dir / tep_info + model_best_path
+    model_best_path = logger.model_dir / model_best_path
 
 
     network, criterion = torch.nn.DataParallel(search_model).cuda(), criterion.cuda()
