@@ -63,11 +63,11 @@ class Logger(object):
         if mode is None:
             return self.log_dir
         elif mode == "model":
-            return self.model_dir / "seed-{:}-basic.pth".format(self.seed)
+            return self.model_dir / "basic-seed-{:}.pth".format(self.seed)
         elif mode == "best":
-            return self.model_dir / "seed-{:}-best.pth".format(self.seed)
+            return self.model_dir / "best-seed-{:}.pth".format(self.seed)
         elif mode == "info":
-            return self.log_dir / "seed-{:}-last-info.pth".format(self.seed)
+            return self.log_dir / "last-info-seed-{:}.pth".format(self.seed)
         elif mode == "log":
             return self.log_dir
         else:

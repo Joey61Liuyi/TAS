@@ -420,7 +420,7 @@ class LeNet(nn.Module):
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 100)
+        self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -507,7 +507,7 @@ class GoogLeNet(nn.Module):
         self.b5 = Inception(832, 384, 192, 384, 48, 128, 128)
 
         self.avgpool = nn.AvgPool2d(8, stride=1)
-        self.linear = nn.Linear(1024, 100)
+        self.linear = nn.Linear(1024, 10)
 
     def forward(self, x):
         out = self.pre_layers(x)

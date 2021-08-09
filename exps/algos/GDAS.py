@@ -662,12 +662,22 @@ def main(xargs):
     else:
         api = API(xargs.arch_nas_dataset)
     logger.log("{:} create API = {:} done".format(time_string(), api))
-
+    print('debug')
     last_info, model_base_path, model_best_path = (
         logger.path("info"),
         logger.path("model"),
         logger.path("best"),
     )
+
+    tep_info = '{}_{}_{}_'.format(args.teacher_model, args.student_model,
+                                         time.strftime("%m-%d,%H", time.localtime()))
+
+    model_base_path = tep_info + "basic-seed-{:}.pth".format(args.rand_seed)
+    model_base_path = logger.model_dir / model_base_path
+    model_best_path = tep_info + "best-seed-{:}.pth".format(args.rand_seed)
+    model_best_path = logger.model_dir / tep_info + model_best_path
+
+
     network, criterion = torch.nn.DataParallel(search_model).cuda(), criterion.cuda()
 
     if last_info.exists():  # automatically resume from previous checkpoint
@@ -922,7 +932,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset",
         type=str,
-        default= 'cifar100',
+        default= 'cifar10',
         choices=["cifar10", "cifar100", "ImageNet16-120"],
         help="Choose between Cifar10/100 and ImageNet-16.",
     )
@@ -986,8 +996,8 @@ if __name__ == "__main__":
     parser.add_argument("--teacher_model", default="googlenet", type=str, help="type of teacher mode")
     parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
     parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/googlenet.pth', type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-5586-best5_layers_None_shufflenetg3_57.38%_08-05,00.pth', type=str,
+    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-63079-best1_layers_None_lenet_70.15%_08-08,20.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()
