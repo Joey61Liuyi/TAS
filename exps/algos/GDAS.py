@@ -982,11 +982,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="resnet110", type=str, help="type of teacher mode")
+    parser.add_argument("--teacher_model", default="googlenet", type=str, help="type of teacher mode")
     parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
-    parser.add_argument("--student_model", default='plane2', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth', type=str, help="teacher mode's check point")
-    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53972-best_plane2_69.40%_07-07,03.pth', type=str,
+    parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
+    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth', type=str, help="teacher mode's check point")
+    parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-63079-best1_layers_None_lenet_70.15%_08-08,20.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
     args = parser.parse_args()

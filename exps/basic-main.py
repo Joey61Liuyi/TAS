@@ -74,9 +74,9 @@ def main(args):
             teacher_model.load_state_dict(checkpoint["base-model"])
         else:
             teacher_model, teacher_optimizer, teacher_scheduler = create_cnn_model(args.teacher_model, args.dataset, total_epoch, args.teacher_path, use_cuda=1)
-
     else:
         teacher_model = None
+
 
     if args.student_model == "normal":
         base_model = obtain_model(model_config)
@@ -92,6 +92,17 @@ def main(args):
         base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
         # raise ValueError("invalid model-source : {:}".format(args.student_model))
     flop, param = get_model_infos(base_model, xshape)
+    if args.student_model:
+        if args.student_model == "normal":
+            base_model = obtain_model(model_config)
+        elif args.student_model == "nas":
+            base_model = obtain_nas_infer_model(model_config, args.extra_model_path)
+        elif args.student_model == "autodl-searched":
+            base_model = obtain_model(model_config, args.extra_model_path)
+        else:
+            base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
+            # raise ValueError("invalid model-source : {:}".format(args.student_model))
+        flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
     # logger.log("model information : {:}".format(base_model.get_message()))
     logger.log("-" * 50)
@@ -303,6 +314,20 @@ def main(args):
             torch.cuda.empty_cache()
 
         # save checkpoint
+        if 'autodl-searched' in args.teacher_model or 'autodl-searched' in args.student_model:
+
+            tep_info = '{}_{}_{:.2f}%_{}layer_{}'.format(args.teacher_model, args.student_model,
+                                                         valid_accuracies["best"], model_config.layers,
+                                                         time.strftime("%m-%d,%H", time.localtime()))
+
+        else:
+            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"],
+                                                 time.strftime("%m-%d,%H", time.localtime()))
+
+        model_base_path = tep_info + "basic-seed-{:}.pth".format(args.rand_seed)
+        model_base_path = logger.model_dir / model_base_path
+        model_best_path = tep_info + "best-seed-{:}.pth".format(args.rand_seed)
+        model_best_path = logger.model_dir / model_best_path
 
         if genotypes:
             save_path = save_checkpoint(
@@ -345,12 +370,7 @@ def main(args):
 
         if find_best:
 
-            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"], time.strftime("%m-%d,%H", time.localtime()))
-            model_best_path_new = list(str(model_best_path))
-            model_best_path_new.insert(-4, tep_info)
-            model_best_path_new = ''.join(model_best_path_new)
-            model_best_path_new = Path(model_best_path_new)
-            copy_checkpoint(model_base_path, model_best_path_new, logger)
+            copy_checkpoint(model_base_path, model_best_path, logger)
         last_info = save_checkpoint(
             {
                 "epoch": epoch,
@@ -379,16 +399,16 @@ def main(args):
 
 if __name__ == "__main__":
     args = obtain_args()
-    args.dataset = 'cifar100'
+    args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.teacher_model = None
-    args.teacher_path = None
+    args.teacher_model = 'googlenet'
+    args.teacher_path = '../exps/output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
 
     args.student_model = 'googlenet'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    # args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-48469-basic.pth'
-    args.extra_model_path = None
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-36561-basic-doublecell-layer1.pth'
+    # args.extra_model_path = None
     args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
@@ -401,22 +421,30 @@ if __name__ == "__main__":
     main(args)
 
     #
-    # model_list = ['resnet14', 'resnet8', 'plane10', 'plane8', 'plane6', 'plane4']
+    # model_list = ['resnet56', 'resnet44', 'plane32', 'plane26', 'plane20', 'plane8']
 
     # model_list = []
-    # model_list.append(('resnet14', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-12467-bestresnet110_resnet14_90.03%_07-12,06.pth'))
-    # model_list.append(('resnet8', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-38001-bestresnet110_resnet8_85.77%_07-12,09.pth'))
-    # model_list.append(('plane10',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85270-bestresnet110_plane10_92.43%_07-12,11.pth'))
-    # model_list.append(('plane8',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-51223-bestresnet110_plane8_89.09%_07-12,14.pth'))
-    # model_list.append(('plane6',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-93473-bestresnet110_plane6_86.63%_07-12,17.pth'))
-    # model_list.append(('plane4',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-79447-bestresnet110_plane4_81.30%_07-12,19.pth'))
+    # model_list.append(('resnet110',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'))
+    # model_list.append(('resnet56', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-6363-best_resnet56_94.83%_07-06,03.pth'))
+    # model_list.append(('resnet44', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-64595-best_resnet44_92.57%_07-07,06.pth'))
+    # model_list.append(('resnet32',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85575-best_resnet32_91.79%_07-07,08.pth'))
+    # model_list.append(('resnet26',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-38167-best_resnet26_91.10%_07-07,09.pth'))
+    # model_list.append(('resnet20',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-37176-best_resnet20_90.93%_07-07,10.pth'))
+    # model_list.append(('resnet14',
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-20612-best_resnet14_89.08%_07-07,11.pth'))
+    # model_list.append(('resnet8',
+    #                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-50467-best_resnet8_85.44%_07-07,12.pth'))
     #
-    # for (one, two) in model_list:
-    #     args.rand_seed = -1
+    # for one, two in model_list:
+    #     if one =='resnet26':
+    #
+    #         args.rand_seed = 75724
+    #     else:
+    #         args.rand_seed = -1
     #     args.teacher_model = one
     #     args.teacher_path = two
     #     main(args)
