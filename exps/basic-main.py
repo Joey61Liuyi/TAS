@@ -69,7 +69,7 @@ def main(args):
         elif args.teacher_model == "nas":
             teacher_model = obtain_nas_infer_model(model_config, args.teacher_path)
         elif args.teacher_model == "autodl-searched":
-            teacher_model = obtain_model(model_config, args.extra_model_path).cuda()
+            teacher_model = obtain_model(model_config, args.extra_model_path, args.conv_number).cuda()
             checkpoint = torch.load(args.teacher_path)
             teacher_model.load_state_dict(checkpoint["base-model"])
         else:
@@ -77,32 +77,21 @@ def main(args):
     else:
         teacher_model = None
 
-
-    if args.student_model == "normal":
-        base_model = obtain_model(model_config)
-    elif args.student_model == "nas":
-        base_model = obtain_nas_infer_model(model_config, args.extra_model_path)
-    elif args.student_model == "autodl-searched":
-        base_model = obtain_model(model_config, args.extra_model_path)
-        checkpoint = torch.load(args.extra_model_path)
-        genotypes = checkpoint["genotypes"]
-
-
-    else:
-        base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
         # raise ValueError("invalid model-source : {:}".format(args.student_model))
-    flop, param = get_model_infos(base_model, xshape)
+
     if args.student_model:
         if args.student_model == "normal":
             base_model = obtain_model(model_config)
         elif args.student_model == "nas":
             base_model = obtain_nas_infer_model(model_config, args.extra_model_path)
         elif args.student_model == "autodl-searched":
-            base_model = obtain_model(model_config, args.extra_model_path)
+            base_model = obtain_model(model_config, args.extra_model_path, args.conv_number)
         else:
             base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
             # raise ValueError("invalid model-source : {:}".format(args.student_model))
         flop, param = get_model_infos(base_model, xshape)
+
+    flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
     # logger.log("model information : {:}".format(base_model.get_message()))
     logger.log("-" * 50)
@@ -403,12 +392,13 @@ if __name__ == "__main__":
     args.data_path = '../data'
     args.teacher_model = 'googlenet'
     args.teacher_path = '../exps/output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
-
-    args.student_model = 'googlenet'
+    args.student_model = 'autodl-searched'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/seed-36561-basic-doublecell-layer1.pth'
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth' \
+                            ''
     # args.extra_model_path = None
+    args.conv_number = 15
     args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16

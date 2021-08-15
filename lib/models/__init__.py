@@ -18,6 +18,17 @@ from models.addtional_models import create_cnn_model, count_parameters_in_MB
 
 
 # Cell-based NAS Models
+
+def count_conv_num(input):
+  count = 0
+  for i in input:
+    for k in i:
+      if 'sepc' in k[0]:
+        count += 1
+  return count
+
+
+
 def get_cell_based_tiny_net(config):
   if isinstance(config, dict): config = dict2config(config, None) # to support the argument being a dict
   super_type = getattr(config, 'super_type', 'basic')
@@ -73,7 +84,7 @@ def get_search_spaces(xtype, name) -> List[Text]:
     raise ValueError('invalid search-space type is {:}'.format(xtype))
 
 
-def get_cifar_models(config, extra_path=None):
+def get_cifar_models(config, extra_path=None, conv_number = None):
   super_type = getattr(config, 'super_type', 'basic')
   if super_type == 'basic':
     from .CifarResNet      import CifarResNet
@@ -105,8 +116,20 @@ def get_cifar_models(config, extra_path=None):
       if extra_path is not None:  # reload genotype by extra_path
         if not osp.isfile(extra_path): raise ValueError('invalid extra_path : {:}'.format(extra_path))
         xdata = torch.load(extra_path)
-        current_epoch = xdata['epoch']
-        genotype = xdata['genotypes'][current_epoch-1]
+
+        current_epoch = 0
+        xdata['genotypes'].pop('best')
+        for one in xdata['genotypes']:
+          genotype_tep = xdata['genotypes'][one]
+          normal = genotype_tep['normal']
+          reduce = genotype_tep['reduce']
+          if count_conv_num(normal)+count_conv_num(reduce) == conv_number and int(one) >= current_epoch:
+            genotype = genotype_tep
+            current_epoch = int(one)
+
+      print(genotype)
+
+        # genotype = xdata['genotypes'][current_epoch-1]
       C = config.C if hasattr(config, 'C') else config.ichannel
       N = config.N if hasattr(config, 'N') else config.layers
       return NASNetonCIFAR(C, N, config.stem_multi, config.class_num, genotype, config.auxiliary)
@@ -146,9 +169,9 @@ def get_imagenet_models(config):
 
 
 # Try to obtain the network by config.
-def obtain_model(config, extra_path=None):
+def obtain_model(config, extra_path=None, conv_number = None):
   if config.dataset == 'cifar':
-    return get_cifar_models(config, extra_path)
+    return get_cifar_models(config, extra_path, conv_number)
   elif config.dataset == 'imagenet':
     return get_imagenet_models(config)
   else:
