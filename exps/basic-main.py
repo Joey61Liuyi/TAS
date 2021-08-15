@@ -305,8 +305,8 @@ def main(args):
         # save checkpoint
         if 'autodl-searched' in args.teacher_model or 'autodl-searched' in args.student_model:
 
-            tep_info = '{}_{}_{:.2f}%_{}layer_{}'.format(args.teacher_model, args.student_model,
-                                                         valid_accuracies["best"], model_config.layers,
+            tep_info = '{}_{}_{:.2f}%_{}_convnum_{}'.format(args.teacher_model, args.student_model,
+                                                         valid_accuracies["best"], args.conv_number,
                                                          time.strftime("%m-%d,%H", time.localtime()))
 
         else:
