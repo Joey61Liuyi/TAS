@@ -414,13 +414,13 @@ class AlexNet(nn.Module):
 
 
 class LeNet(nn.Module):
-    def __init__(self):
+    def __init__(self, number_classes):
         super(LeNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, kernel_size=5)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.fc3 = nn.Linear(84, number_classes)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -484,7 +484,7 @@ class Inception(nn.Module):
 
 
 class GoogLeNet(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes):
         super(GoogLeNet, self).__init__()
         self.pre_layers = nn.Sequential(
             nn.Conv2d(3, 192, kernel_size=3, padding=1),
@@ -507,7 +507,7 @@ class GoogLeNet(nn.Module):
         self.b5 = Inception(832, 384, 192, 384, 48, 128, 128)
 
         self.avgpool = nn.AvgPool2d(8, stride=1)
-        self.linear = nn.Linear(1024, 10)
+        self.linear = nn.Linear(1024, num_classes)
 
     def forward(self, x):
         x = self.pre_layers(x)
@@ -549,7 +549,7 @@ class MobileNet(nn.Module):
     # (128,2) means conv planes=128, conv stride=2, by default conv stride=1
     cfg = [64, (128, 2), 128, (256, 2), 256, (512, 2), 512, 512, 512, 512, 512, (1024, 2), 1024]
 
-    def __init__(self, num_classes=10):
+    def __init__(self, num_classes=100):
         super(MobileNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
@@ -606,7 +606,7 @@ class fire(nn.Module):
 
 
 class SqueezeNet(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes):
         super(SqueezeNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 96, kernel_size=3, stride=1, padding=1)  # 32
         self.bn1 = nn.BatchNorm2d(96)
@@ -622,7 +622,7 @@ class SqueezeNet(nn.Module):
         self.fire8 = fire(384, 64, 256)
         self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)  # 4
         self.fire9 = fire(512, 64, 256)
-        self.conv2 = nn.Conv2d(512, 10, kernel_size=1, stride=1)
+        self.conv2 = nn.Conv2d(512, num_classes, kernel_size=1, stride=1)
         self.avg_pool = nn.AvgPool2d(kernel_size=4, stride=4)
         self.softmax = nn.LogSoftmax(dim=1)
         for m in self.modules():
@@ -698,7 +698,7 @@ class Bottleneck(nn.Module):
 
 
 class ShuffleNet(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, num_classes):
         super(ShuffleNet, self).__init__()
         out_planes = cfg['out_planes']
         num_blocks = cfg['num_blocks']
@@ -710,7 +710,7 @@ class ShuffleNet(nn.Module):
         self.layer1 = self._make_layer(out_planes[0], num_blocks[0], groups)
         self.layer2 = self._make_layer(out_planes[1], num_blocks[1], groups)
         self.layer3 = self._make_layer(out_planes[2], num_blocks[2], groups)
-        self.linear = nn.Linear(out_planes[2], 10)
+        self.linear = nn.Linear(out_planes[2], num_classes)
 
     def _make_layer(self, out_planes, num_blocks, groups):
         layers = []
@@ -732,22 +732,103 @@ class ShuffleNet(nn.Module):
         return out
 
 
-def ShuffleNetG2():
+def ShuffleNetG2(num_classes):
     cfg = {
         'out_planes': [200, 400, 800],
         'num_blocks': [4, 8, 4],
         'groups': 2
     }
-    return ShuffleNet(cfg)
+    return ShuffleNet(cfg, num_classes)
 
 
-def ShuffleNetG3():
+def ShuffleNetG3(num_classes):
     cfg = {
         'out_planes': [240, 480, 960],
         'num_blocks': [4, 8, 4],
         'groups': 3
     }
-    return ShuffleNet(cfg)
+    return ShuffleNet(cfg, num_classes)
+
+class Block(nn.Module):
+    '''expand + depthwise + pointwise + squeeze-excitation'''
+
+    def __init__(self, in_planes, out_planes, expansion, stride):
+        super(Block, self).__init__()
+        self.stride = stride
+
+        planes = expansion * in_planes
+        self.conv1 = nn.Conv2d(
+            in_planes, planes, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
+                               stride=stride, padding=1, groups=planes, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = nn.Conv2d(
+            planes, out_planes, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_planes)
+
+        self.shortcut = nn.Sequential()
+        if stride == 1 and in_planes != out_planes:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_planes, out_planes, kernel_size=1,
+                          stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(out_planes),
+            )
+
+        # SE layers
+        self.fc1 = nn.Conv2d(out_planes, out_planes//16, kernel_size=1)
+        self.fc2 = nn.Conv2d(out_planes//16, out_planes, kernel_size=1)
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = F.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
+        shortcut = self.shortcut(x) if self.stride == 1 else out
+        # Squeeze-Excitation
+        w = F.avg_pool2d(out, out.size(2))
+        w = F.relu(self.fc1(w))
+        w = self.fc2(w).sigmoid()
+        out = out * w + shortcut
+        return out
+
+
+class EfficientNet(nn.Module):
+    def __init__(self, cfg, num_classes=100):
+        super(EfficientNet, self).__init__()
+        self.cfg = cfg
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3,
+                               stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.layers = self._make_layers(in_planes=32)
+        self.linear = nn.Linear(cfg[-1][1], num_classes)
+
+    def _make_layers(self, in_planes):
+        layers = []
+        for expansion, out_planes, num_blocks, stride in self.cfg:
+            strides = [stride] + [1]*(num_blocks-1)
+            for stride in strides:
+                layers.append(Block(in_planes, out_planes, expansion, stride))
+                in_planes = out_planes
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layers(out)
+        out = out.view(out.size(0), -1)
+        out = self.linear(out)
+        return out
+
+
+def EfficientNetB0(class_num):
+    # (expansion, out_planes, num_blocks, stride)
+    cfg = [(1,  16, 1, 2),
+           (6,  24, 2, 1),
+           (6,  40, 2, 2),
+           (6,  80, 3, 2),
+           (6, 112, 3, 1),
+           (6, 192, 4, 2),
+           (6, 320, 1, 2)]
+    return EfficientNet(cfg, class_num)
 
 
 resnet_book = {
@@ -819,7 +900,8 @@ def is_resnet(name):
         return 'squeezenet'
     elif name.startswith('shufflenet'):
         return 'shufflenet'
-
+    elif name.startswith('efficientnetb0'):
+        return 'efficientnetb0'
 
 def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = None, use_cuda = False):
     """
@@ -859,65 +941,79 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
         alexnet_model = AlexNet(num_classes)
         model = alexnet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        scheduler = ExponentialLR(optimizer, 10, total_epochs, last_epoch=-1)
-
-    elif is_resnet(name) == 'lenet':
-        lenet_model = LeNet()
-        model = lenet_model
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-
-    elif is_resnet(name) == 'googlenet':
-        googlenet_model = GoogLeNet()
-        model = googlenet_model
-        # optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
-        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        # scheduler = ExponentialLR(optimizer, 10, total_epochs, last_epoch=-1)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[total_epochs*3/8, total_epochs*3/4, total_epochs], gamma=0.5)
 
-    elif is_resnet(name) == 'mobilenet':
-        mobilenet_model = MobileNet()
-        model = mobilenet_model
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08,
-                                     weight_decay=0)
+    elif is_resnet(name) == 'lenet':
+        lenet_model = LeNet(num_classes)
+        model = lenet_model
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
-                                                        gamma=0.1, last_epoch=-1)
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
+    elif is_resnet(name) == 'googlenet':
+        googlenet_model = GoogLeNet(num_classes)
+        model = googlenet_model
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs*3 / 8, total_epochs * 3 / 4, total_epochs], gamma=0.5)
+    elif is_resnet(name) == 'mobilenet':
+        mobilenet_model = MobileNet(num_classes)
+        model = mobilenet_model
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs*3 / 8, total_epochs * 3 / 4, total_epochs], gamma=0.5)
     elif is_resnet(name) == 'squeezenet':
-        squeezenet_model = SqueezeNet()
+        squeezenet_model = SqueezeNet(num_classes)
         model = squeezenet_model
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs / 2, total_epochs * 3 / 4, total_epochs], gamma=0.1, last_epoch=-1)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
-                                                        gamma=0.1, last_epoch=-1)
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
     elif is_resnet(name) == 'shufflenet':
         shufflenet_type = name[10:]
         if shufflenet_type == 'g2' or shufflenet_type == 'G2':
-            shufflenet_model = ShuffleNetG2()
+            shufflenet_model = ShuffleNetG2(num_classes)
         else:
-            shufflenet_model = ShuffleNetG3()
+            shufflenet_model = ShuffleNetG3(num_classes)
         model = shufflenet_model
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                        [total_epochs / 2, total_epochs * 3 / 4, total_epochs],
-                                                        gamma=0.1, last_epoch=-1)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [total_epochs*3 / 8, total_epochs * 3 / 4, total_epochs], gamma=0.5)
 
+    elif is_resnet(name) == 'efficientnetb0':
+        efficientnetb0_model = EfficientNetB0(num_classes)
+        model = efficientnetb0_model
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+        # Assuming optimizer uses lr = 0.05 for all groups
+        # lr = 0.05     if epoch < 30
+        # lr = 0.005    if 30 <= epoch < 60
+        # lr = 0.0005   if 60 <= epoch < 90
+        # ...
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
     # copy to cuda if activated
     if use_cuda:
         model = model.cuda()
 
     if model_path:
+        print(model_path)
         checkpoint = torch.load(model_path)
-        tep = (1,2)
-        if type(checkpoint) is type(tep):
-            checkpoint = checkpoint[0]
+
+        pass
+
         if 'base-model' in checkpoint:
             model.load_state_dict(checkpoint['base-model'])
-        else:
+        elif 'state_dict' in checkpoint:
             model.load_state_dict(checkpoint['state_dict'])
-        scheduler.load_state_dict(checkpoint['scheduler'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        if 'scheduler' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler'])
+        if 'optimizer' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer'])
 
     return model, optimizer, scheduler
 

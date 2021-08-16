@@ -89,7 +89,7 @@ def main(args):
         else:
             base_model, optimizer, scheduler = create_cnn_model(args.student_model, args.dataset, total_epoch, None, use_cuda = 1)
             # raise ValueError("invalid model-source : {:}".format(args.student_model))
-        flop, param = get_model_infos(base_model, xshape)
+
 
     flop, param = get_model_infos(base_model, xshape)
     logger.log("model ====>>>>:\n{:}".format(base_model))
@@ -303,14 +303,16 @@ def main(args):
             torch.cuda.empty_cache()
 
         # save checkpoint
-        if 'autodl-searched' in args.teacher_model or 'autodl-searched' in args.student_model:
 
-            tep_info = '{}_{}_{:.2f}%_{}_convnum_{}'.format(args.teacher_model, args.student_model,
+
+        if args.teacher_model and ('autodl-searched' in args.teacher_model or 'autodl-searched' in args.student_model):
+
+            tep_info = '{}_{}_{}_{:.2f}%_{}_convnum_{}'.format(args.dataset, args.teacher_model, args.student_model,
                                                          valid_accuracies["best"], args.conv_number,
                                                          time.strftime("%m-%d,%H", time.localtime()))
 
         else:
-            tep_info = '{}_{}_{:.2f}%_{}'.format(args.teacher_model, args.student_model, valid_accuracies["best"],
+            tep_info = '{}_{}_{}_{:.2f}%_{}'.format(args.dataset, args.teacher_model, args.student_model, valid_accuracies["best"],
                                                  time.strftime("%m-%d,%H", time.localtime()))
 
         model_base_path = tep_info + "basic-seed-{:}.pth".format(args.rand_seed)
@@ -388,15 +390,14 @@ def main(args):
 
 if __name__ == "__main__":
     args = obtain_args()
-    args.dataset = 'cifar10'
+    args.dataset = 'cifar100'
     args.data_path = '../data'
-    args.teacher_model = 'googlenet'
-    args.teacher_path = '../exps/output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
-    args.student_model = 'autodl-searched'
+    args.teacher_model = None
+    args.teacher_path = None
+    # args.student_model = 'autodl-searched'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth' \
-                            ''
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth'
     # args.extra_model_path = None
     args.conv_number = 15
     args.procedure = 'KD'
@@ -408,10 +409,10 @@ if __name__ == "__main__":
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    main(args)
+    # main(args)
 
     #
-    # model_list = ['resnet56', 'resnet44', 'plane32', 'plane26', 'plane20', 'plane8']
+    model_list = ['efficientnetb0']
 
     # model_list = []
     # model_list.append(('resnet110',
@@ -428,13 +429,13 @@ if __name__ == "__main__":
     #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-20612-best_resnet14_89.08%_07-07,11.pth'))
     # model_list.append(('resnet8',
     #                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-50467-best_resnet8_85.44%_07-07,12.pth'))
-    #
-    # for one, two in model_list:
-    #     if one =='resnet26':
-    #
-    #         args.rand_seed = 75724
-    #     else:
-    #         args.rand_seed = -1
-    #     args.teacher_model = one
-    #     args.teacher_path = two
-    #     main(args)
+
+    for one in model_list:
+        # if one =='resnet26':
+        #
+        #     args.rand_seed = 75724
+        # else:
+        args.rand_seed = -1
+        args.student_model = one
+        # args.teacher_path = two
+        main(args)
