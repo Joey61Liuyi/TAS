@@ -433,6 +433,28 @@ class LeNet(nn.Module):
         x = self.fc3(x)
         return x
 
+class LeNet_wide(nn.Module):
+    def __init__(self, class_num, times):
+        super(LeNet_wide, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6*times, kernel_size=5)
+        self.conv2 = nn.Conv2d(6*times, 16*times, kernel_size=5)
+        self.fc1 = nn.Linear(16 * 5 * 5 * times, 120 * times)
+        self.fc2 = nn.Linear(120 * times, 84*times)
+        self.fc3 = nn.Linear(84* times, class_num)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.max_pool2d(x, 2)
+        x = F.relu(self.conv2(x))
+        x = F.max_pool2d(x, 2)
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+
+
 
 class Inception(nn.Module):
     def __init__(self, in_planes, kernel_1_x, kernel_3_in, kernel_3_x, kernel_5_in, kernel_5_x, pool_planes):
@@ -890,6 +912,8 @@ def is_resnet(name):
         return 'vgg'
     elif name.startswith('resnext'):
         return 'resnext'
+    elif name.startswith('lenet_wide'):
+        return 'lenet_wide'
     elif name.startswith('lenet'):
         return 'lenet'
     elif name.startswith('googlenet'):
@@ -949,9 +973,16 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
         model = lenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
-                                                         gamma=0.5)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+
+
+    elif is_resnet(name) == 'lenet_wide':
+        time = int(name.lower().strip('lenet_wide'))
+        lenet_model = LeNet_wide(num_classes, time)
+        model = lenet_model
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+
     elif is_resnet(name) == 'googlenet':
         googlenet_model = GoogLeNet(num_classes)
         model = googlenet_model

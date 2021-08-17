@@ -386,18 +386,20 @@ def main(args):
     )
     logger.log("-" * 200 + "\n")
     logger.close()
+    return model_best_path
 
 
 if __name__ == "__main__":
     args = obtain_args()
-    args.dataset = 'cifar100'
+    args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.teacher_model = None
-    args.teacher_path = None
-    # args.student_model = 'autodl-searched'
+    args.teacher_model = 'lenet_wide'
+    args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/None_lenet_wide_77.80%_08-17,22best-seed-98282.pth'
+    args.student_model = 'lenet'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth'
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth' \
+                            ''
     # args.extra_model_path = None
     args.conv_number = 15
     args.procedure = 'KD'
@@ -411,10 +413,25 @@ if __name__ == "__main__":
     args.print_freq_eval = 1000
     # main(args)
 
-    #
-    model_list = ['efficientnetb0']
 
-    # model_list = []
+
+    #
+    # model_list = ['resnet56', 'resnet44', 'plane32', 'plane26', 'plane20', 'plane8']
+
+    model_list = ['lenet_wide3', 'lenet_wide4', 'lenet_wide5', 'lenet_wide6', 'lenet_wide7']
+    for one in model_list:
+        args.teacher_model = 'googlenet'
+        args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
+        args.student_model = one
+        args.rand_seed = -1
+        path = main(args)
+        args.teacher_model = one
+        args.teacher_path = path
+        args.student_model = 'lenet'
+        args.rand_seed = -1
+        path = main(args)
+        print(path)
+
     # model_list.append(('resnet110',
     #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'))
     # model_list.append(('resnet56', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-6363-best_resnet56_94.83%_07-06,03.pth'))
@@ -429,13 +446,13 @@ if __name__ == "__main__":
     #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-20612-best_resnet14_89.08%_07-07,11.pth'))
     # model_list.append(('resnet8',
     #                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-50467-best_resnet8_85.44%_07-07,12.pth'))
-
-    for one in model_list:
-        # if one =='resnet26':
-        #
-        #     args.rand_seed = 75724
-        # else:
-        args.rand_seed = -1
-        args.student_model = one
-        # args.teacher_path = two
-        main(args)
+    #
+    # for one, two in model_list:
+    #     if one =='resnet26':
+    #
+    #         args.rand_seed = 75724
+    #     else:
+    #         args.rand_seed = -1
+    #     args.teacher_model = one
+    #     args.teacher_path = two
+    #     main(args)
