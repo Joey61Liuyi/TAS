@@ -387,7 +387,7 @@ def main(args):
     )
     logger.log("-" * 200 + "\n")
     logger.close()
-    return output
+    return str(output)
 
 
 if __name__ == "__main__":
@@ -426,6 +426,7 @@ if __name__ == "__main__":
         args.student_model = one
         args.rand_seed = -1
         path = main(args)
+        print(path)
         args.teacher_model = one
         args.teacher_path = path
         args.student_model = 'lenet'
