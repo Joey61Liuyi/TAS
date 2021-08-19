@@ -362,6 +362,7 @@ def main(args):
         if find_best:
 
             copy_checkpoint(model_base_path, model_best_path, logger)
+            output = model_best_path
         last_info = save_checkpoint(
             {
                 "epoch": epoch,
@@ -386,7 +387,7 @@ def main(args):
     )
     logger.log("-" * 200 + "\n")
     logger.close()
-    return model_best_path
+    return output
 
 
 if __name__ == "__main__":
@@ -418,7 +419,7 @@ if __name__ == "__main__":
     #
     # model_list = ['resnet56', 'resnet44', 'plane32', 'plane26', 'plane20', 'plane8']
 
-    model_list = ['lenet_wide3', 'lenet_wide4', 'lenet_wide5', 'lenet_wide6', 'lenet_wide7']
+    model_list = ['lenet_wide1']
     for one in model_list:
         args.teacher_model = 'googlenet'
         args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
