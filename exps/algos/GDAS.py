@@ -33,6 +33,7 @@ from log_utils import AverageMeter, time_string, convert_secs2time
 from models import get_cell_based_tiny_net, get_search_spaces
 from nas_201_api import NASBench201API as API
 from models import create_cnn_model, count_parameters_in_MB
+import wandb
 
 
 
@@ -246,8 +247,8 @@ def search_func_modified(xloader,
 
         loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
                                             F.softmax(logits_teacher / T, dim=1))
-        loss_KD_TA += T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-                                             F.softmax(logits_student / T, dim=1))
+        # loss_KD_TA += T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
+        #                                      F.softmax(logits_student / T, dim=1))
         arch_loss = (1 - lambda_) * criterion(logits, arch_targets) + lambda_ * loss_KD_TA
         arch_loss.backward()
         a_optimizer.step()
@@ -634,22 +635,25 @@ def main(xargs):
             },
             None,
         )
-    search_model = get_cell_based_tiny_net(model_config)
-    logger.log("search-model :\n{:}".format(search_model))
-    logger.log("model-config : {:}".format(model_config))
+
+    if TA == 'cs_lenet':
+        search_model, (w_optimizer, a_optimizer), w_scheduler = create_cnn_model(TA, train_data, config.epochs + config.warmup, None, use_cuda=1)
+    else:
+        search_model = get_cell_based_tiny_net(model_config)
+        logger.log("search-model :\n{:}".format(search_model))
+        logger.log("model-config : {:}".format(model_config))
+        w_optimizer, w_scheduler, criterion = get_optim_scheduler(
+            search_model.get_weights(), config
+        )
+        a_optimizer = torch.optim.Adam(
+            search_model.get_alphas(),
+            lr=xargs.arch_learning_rate,
+            betas=(0.5, 0.999),
+            weight_decay=xargs.arch_weight_decay,
+        )
 
     student_accuracy = {'best': -1}
     TA_accuracy = {'best': -1}
-
-    w_optimizer, w_scheduler, criterion = get_optim_scheduler(
-        search_model.get_weights(), config
-    )
-    a_optimizer = torch.optim.Adam(
-        search_model.get_alphas(),
-        lr=xargs.arch_learning_rate,
-        betas=(0.5, 0.999),
-        weight_decay=xargs.arch_weight_decay,
-    )
     logger.log("w-optimizer : {:}".format(w_optimizer))
     logger.log("a-optimizer : {:}".format(a_optimizer))
     logger.log("w-scheduler : {:}".format(w_scheduler))
@@ -787,6 +791,21 @@ def main(xargs):
         # if student_top1 > student_accuracy['best']:
         #     student_accuracy['best'] = student_top1
 
+
+        info_dict = {
+            "user_w_loss": search_w_loss,
+            "user_w_top1": search_w_top1,
+            "user_w_top5": search_w_top5,
+            "user_a_loss": valid_a_loss,
+            "user_a_top1": valid_a_top1,
+            "user_a_top5": valid_a_top5,
+            "user_test_loss": search_w_loss,
+            "user_test_top1": search_w_loss,
+            "user_test_top5": search_w_loss,
+            "epoch": epoch
+        }
+        wandb.log(info_dict)
+
         TA_accuracy[epoch] = search_w_top1
         if search_w_top1 > TA_accuracy['best']:
             TA_accuracy['best'] = search_w_top1
@@ -917,6 +936,9 @@ def main(xargs):
     #         logger.close()
 
 if __name__ == "__main__":
+
+    wandb.init(project="TA_NAS", name='cifar_10_teacher_resnet110_ta_lenet10-10-inference')
+
     parser = argparse.ArgumentParser("GDAS")
     parser.add_argument("--data_path", default='../../data', type=str, help="Path to dataset")
     parser.add_argument(
@@ -1002,4 +1024,5 @@ if __name__ == "__main__":
     # TA_models = ['plane4', 'plane6', 'resnet26', 'resnet20']
     # for one in TA_models:
     #     args.TA = one
+    wandb.config.update(args)
     main(args)

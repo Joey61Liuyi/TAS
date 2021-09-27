@@ -3,6 +3,7 @@
 #####################################################
 import sys, time, torch, random, argparse
 from PIL import ImageFile
+import wandb
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 from copy import deepcopy
@@ -299,6 +300,18 @@ def main(args):
                 )
             )
             max_bytes[epoch] = num_bytes
+
+        info_dict = {
+            "train_loss": train_loss,
+            "train_top1": train_acc1,
+            "train_top5": train_acc5,
+            "test_loss": valid_loss,
+            "test_top1": valid_acc1,
+            "test_top5": valid_acc5,
+            "epoch": epoch
+        }
+        wandb.log(info_dict)
+
         if epoch % 10 == 0:
             torch.cuda.empty_cache()
 
@@ -391,70 +404,69 @@ def main(args):
 
 
 if __name__ == "__main__":
+
+    wandb.init(project="TA_NAS", name='cifar_10_teacher_resnet110_ta_lenet10-10-inference')
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
-    args.teacher_model = 'lenet_wide'
-    args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/None_lenet_wide_77.80%_08-17,22best-seed-98282.pth'
-    args.student_model = 'lenet'
+    args.teacher_model = 'resnet110'
+    args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
+    args.student_model = 'lenet_wide'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
-    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth' \
-                            ''
+    args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth'
     # args.extra_model_path = None
     args.conv_number = 15
     args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
     args.batch_size = 48
-    args.rand_seed = -1
+    args.rand_seed = 2551
     args.workers = 4
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    # main(args)
+    wandb.config.update(args)
+    main(args)
 
 
 
     #
-    # model_list = ['resnet56', 'resnet44', 'plane32', 'plane26', 'plane20', 'plane8']
+    # model_list = []
 
-    model_list = ['lenet_wide1']
-    for one in model_list:
-        args.teacher_model = 'googlenet'
-        args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
-        args.student_model = one
-        args.rand_seed = -1
-        path = main(args)
-        print(path)
-        args.teacher_model = one
-        args.teacher_path = path
-        args.student_model = 'lenet'
-        args.rand_seed = -1
-        path = main(args)
-        print(path)
+    # model_list = ['lenet_wide2']
+    # for one in model_list:
+    #     args.teacher_model = 'googlenet'
+    #     args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth'
+    #     args.student_model = one
+    #     args.rand_seed = -1
+    #     path = main(args)
+    #     print(path)
+    #     args.teacher_model = one
+    #     args.teacher_path = path
+    #     args.student_model = 'lenet'
+    #     args.rand_seed = -1
+    #     path = main(args)
+    #     print(path)
 
     # model_list.append(('resnet110',
     #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'))
     # model_list.append(('resnet56', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-6363-best_resnet56_94.83%_07-06,03.pth'))
     # model_list.append(('resnet44', './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-64595-best_resnet44_92.57%_07-07,06.pth'))
     # model_list.append(('resnet32',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85575-best_resnet32_91.79%_07-07,08.pth'))
+    # #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-85575-best_resnet32_91.79%_07-07,08.pth'))
     # model_list.append(('resnet26',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-38167-best_resnet26_91.10%_07-07,09.pth'))
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/None_resnet26_60.80%_08-15,08best-seed-62843.pth'))
     # model_list.append(('resnet20',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-37176-best_resnet20_90.93%_07-07,10.pth'))
-    # model_list.append(('resnet14',
-    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-20612-best_resnet14_89.08%_07-07,11.pth'))
-    # model_list.append(('resnet8',
-    #                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-50467-best_resnet8_85.44%_07-07,12.pth'))
+    #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/None_resnet20_58.32%_08-15,10best-seed-92951.pth'))
+    # # model_list.append(('resnet14',
+    # #                    './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-20612-best_resnet14_89.08%_07-07,11.pth'))
+    # # model_list.append(('resnet8',
+    # #                   './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-50467-best_resnet8_85.44%_07-07,12.pth'))
     #
     # for one, two in model_list:
-    #     if one =='resnet26':
     #
-    #         args.rand_seed = 75724
-    #     else:
-    #         args.rand_seed = -1
+    #     args.rand_seed = -1
     #     args.teacher_model = one
     #     args.teacher_path = two
     #     main(args)

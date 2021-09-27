@@ -27,18 +27,18 @@ params = {
 pylab.rcParams.update(params)
 
 # data = pd.read_excel('E:\香港\dissertation\画图图标/TA_NAS Experiment Record.xlsx',names=['Teacher', 'T-ACC', 'S-lenet'], sheet_name='Cifar10', header=None, usecols=[14, 15, 20], skiprows=range(0, 32), skipfooter=6)
-labels = ['16', '14', '12', '10', '08', '06']
-T_ACC = [96.05, 95.87, 94.89, 93.78, 94.20, 94.46]
-S_lenet = [69.97, 70.35, 70.02, 70.24, 69.59, 68.55]
-labels.reverse()
-T_ACC.reverse()
-S_lenet.reverse()
-print(T_ACC)
+labels = ['2', '3', '4', '5', '6', '7', '8']
+# T_ACC = [96.05, 95.87, 94.89, 93.78, 94.20, 94.46]
+S_lenet = [71.73, 69.48, 69.94, 70.64, 70.19, 68.80, 70.12]
+# labels.reverse()
+# T_ACC.reverse()
+# S_lenet.reverse()
+# print(T_ACC)
 
 # 设置柱形的间隔
 width = 0.3  # 柱形的宽度
 
-x = 1 * np.arange(6)
+x = 1 * np.arange(7)
 
 f, ax1 = plt.subplots()
 # 设置左侧Y轴对应的figure
@@ -50,8 +50,8 @@ f, ax1 = plt.subplots()
 # 设置右侧Y轴对应的figure
 # ax2 = ax1.twinx()
 ax1.set_ylabel('Student Accuracy')
-ax1.set_xlabel('conv_number')
-ax1.set_ylim(68, 71)
+ax1.set_xlabel('widen_times')
+ax1.set_ylim(68, 72)
 ax1.bar(x + width / 2, S_lenet, width=width, color='tab:blue')
 # ax2.plot(x + width / 2, S_lenet, color='tab:blue')
 

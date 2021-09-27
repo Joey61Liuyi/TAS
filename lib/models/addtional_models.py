@@ -416,16 +416,21 @@ class AlexNet(nn.Module):
 class LeNet(nn.Module):
     def __init__(self, number_classes):
         super(LeNet, self).__init__()
+
         self.conv1 = nn.Conv2d(3, 6, kernel_size=5)
-        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.conv3 = conv3x3(6, 12)
+        self.conv2 = nn.Conv2d(12, 16, kernel_size=5)
+        self.conv4 = conv3x3(16, 20)
+        self.fc1 = nn.Linear(20 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, number_classes)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
+        x = F.relu(self.conv3(x))
         x = F.max_pool2d(x, 2)
         x = F.relu(self.conv2(x))
+        x = F.relu(self.conv4(x))
         x = F.max_pool2d(x, 2)
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
@@ -433,14 +438,99 @@ class LeNet(nn.Module):
         x = self.fc3(x)
         return x
 
+class CS_LeNet(nn.Module):
+    def __init__(self, opts, class_num):
+        super(CS_LeNet, self).__init__()
+
+        self.opts = opts
+        self.conv1 = nn.Conv2d(3, self.opts[-1], kernel_size=5)
+        self.max_pool1 = nn.MaxPool2d(kernel_size=2)
+        self.conv2 = nn.Conv2d(self.opts[-1], self.opts[-1], kernel_size=5)
+        self.max_pool2 = nn.MaxPool2d(kernel_size=2)
+        self.fc1 = nn.Linear(self.opts[-1] * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, class_num)
+        self.C_parameters = nn.Parameter(torch.randn(2, len(opts)))
+        self.tau = 10
+
+    def channel_aggregation(self, hardwts):
+        ones = []
+        for i in self.opts:
+            vec = [1] * i + [0] * (self.opts[-1] - i)
+            ones.append(vec)
+        ones = torch.Tensor(ones).cuda()
+        output = sum(
+            ones[_ie] * hardwts[_ie]
+            for _ie in range(len(ones))
+        )
+        return output
+
+    def forward(self, x):
+        # idx = 0
+        while True:  # 防止生成的alpha加上gumble噪音之后造成崩溃
+            # print("we are inside the loop, and this it the loop {}".format(idx))
+            # idx = idx+1
+            gumbels = -torch.empty_like(self.C_parameters).exponential_().log()  # 当有特征被传进来时，用gumble-softmax把alpha变得连续可导
+            logits = (self.C_parameters.log_softmax(dim=1) + gumbels) / self.tau
+            probs = F.softmax(logits, dim=1)  # 对Channels的概率分布（对logits进行softmax函数操作）
+            index = probs.max(-1, keepdim=True)[1]  # 找到probs中最大值的index
+            one_h = torch.zeros_like(logits).scatter_(-1, index, 1.0)  # 根据probs每个元素的最大值的索引生成一个one-hot tensor
+            hardwts = one_h - probs.detach() + probs  # ？？？
+            if (
+                    (torch.isinf(gumbels).any())
+                    or (torch.isinf(probs).any())
+                    or (torch.isnan(probs).any())
+            ):
+                continue
+            else:
+                break
+        x = self.conv1(x)
+        gl = self.channel_aggregation(hardwts[0]).reshape([1, x.shape[1], 1, 1])
+        x = torch.mul(gl, x)
+        x = self.relu1(x)
+        x = self.max_pool1(x)
+        x = self.conv2(x)
+        gl = self.channel_aggregation(hardwts[1]).reshape([1, x.shape[1], 1, 1])
+        x = torch.mul(gl, x)
+        x = self.relu2(x)
+        x = self.max_pool2(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc1(x)
+        x = self.relu3(x)
+        x = self.fc2(x)
+        x = self.relu4(x)
+        x = self.fc3(x)
+        return x
+    def get_alphas(self):
+        return [self.C_parameters]
+    def get_weights(self):
+        xlist = list(self.conv1.parameters()) + list(self.relu1.parameters()) + list(self.max_pool1.parameters()) \
+                + list(self.conv2.parameters()) + list(self.relu2.parameters()) + list(self.max_pool2.parameters())
+        xlist += list(self.fc1.parameters()) + list(self.relu3.parameters()) \
+                 + list(self.fc2.parameters()) + list(self.relu4.parameters()) + list(self.fc3.parameters())
+        return xlist
+
+    def genotype(self):
+        logits = (self.C_parameters.log_softmax(dim=1)) / self.tau
+        probs = F.softmax(logits, dim=1)  # 对Channels的概率分布（对logits进行softmax函数操作）
+        index = probs.max(-1, keepdim=True)[1]  # 找到probs中最大值的index
+        one_h = torch.zeros_like(logits).scatter_(-1, index, 1.0)  # 根据probs每个元素的最大值的索引生成一个one-hot tensor
+        hardwts = one_h - probs.detach() + probs
+        return self.channel_aggregation(hardwts[0]), self.channel_aggregation(hardwts[1])
+
+    def show_alphas(self):
+        with torch.no_grad():
+            return 'arch-parameters :\n{:}'.format(nn.functional.softmax(self.C_parameters, dim=-1).cpu())
+
+
 class LeNet_wide(nn.Module):
-    def __init__(self, class_num, times):
+    def __init__(self, class_num, first_channel, second_channel):
         super(LeNet_wide, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6*times, kernel_size=5)
-        self.conv2 = nn.Conv2d(6*times, 16*times, kernel_size=5)
-        self.fc1 = nn.Linear(16 * 5 * 5 * times, 120 * times)
-        self.fc2 = nn.Linear(120 * times, 84*times)
-        self.fc3 = nn.Linear(84* times, class_num)
+        self.conv1 = nn.Conv2d(3, first_channel, kernel_size=5)
+        self.conv2 = nn.Conv2d(first_channel, second_channel, kernel_size=5)
+        self.fc1 = nn.Linear(second_channel * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, class_num)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))
@@ -503,6 +593,7 @@ class Inception(nn.Module):
         y3 = self.b3(x)
         y4 = self.b4(x)
         return torch.cat([y1,y2,y3,y4], 1)
+
 
 
 class GoogLeNet(nn.Module):
@@ -926,6 +1017,8 @@ def is_resnet(name):
         return 'shufflenet'
     elif name.startswith('efficientnetb0'):
         return 'efficientnetb0'
+    elif name.startswith('cs_lenet'):
+        return 'cs_lenet'
 
 def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = None, use_cuda = False):
     """
@@ -977,12 +1070,28 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
 
 
     elif is_resnet(name) == 'lenet_wide':
-        time = int(name.lower().strip('lenet_wide'))
-        lenet_model = LeNet_wide(num_classes, time)
+        first_channel = 10
+        second_channel = 10
+        lenet_model = LeNet_wide(num_classes, first_channel, second_channel)
         model = lenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
+    elif is_resnet(name) == "cs_lenet":
+
+        if dataset == 'cifar10':
+            channel_range = list(range(5, 25, 2))
+        elif dataset == 'cifar100':
+            channel_range = list(range(20, 220, 20))
+        model = CS_LeNet(channel_range, num_classes)
+        w_optimizer = torch.optim.Adam(model.get_weights(), lr=0.001)
+        w_scheduler = torch.optim.lr_scheduler.MultiStepLR(w_optimizer,
+                                                         [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                         gamma=0.5)
+        a_optimizer = torch.optim.Adam(model.get_alphas(), lr=3e-4, betas=(0.5, 0.999), weight_decay=1e-3)
+
+        optimizer = (w_optimizer, a_optimizer)
+        scheduler = w_scheduler
     elif is_resnet(name) == 'googlenet':
         googlenet_model = GoogLeNet(num_classes)
         model = googlenet_model
