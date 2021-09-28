@@ -189,7 +189,6 @@ import wandb
 def search_func_modified(xloader,
     teacher_model,
     network,
-    student_model,
     criterion,
     scheduler,
     w_optimizer,
@@ -199,7 +198,6 @@ def search_func_modified(xloader,
     logger,
 ):
     teacher_model.eval()
-    student_model.eval()
     data_time, batch_time = AverageMeter(), AverageMeter()
     base_losses, base_top1, base_top5 = AverageMeter(), AverageMeter(), AverageMeter()
     arch_losses, arch_top1, arch_top5 = AverageMeter(), AverageMeter(), AverageMeter()
@@ -210,7 +208,7 @@ def search_func_modified(xloader,
     for step, (base_inputs, base_targets, arch_inputs, arch_targets) in enumerate(
             xloader
     ):
-        scheduler.update(None, 1.0 * step / len(xloader))
+        # scheduler.update(None, 1.0 * step / len(xloader))
         base_targets = base_targets.cuda(non_blocking=True)
         arch_targets = arch_targets.cuda(non_blocking=True)
         # measure data loading time
@@ -218,13 +216,12 @@ def search_func_modified(xloader,
 
         network.train()
         w_optimizer.zero_grad()
-        _, logits = network(base_inputs.cuda())
+        logits = network(base_inputs.cuda())
+        if len(logits)==2:
+            logits = logits[1]
         logits_teacher = teacher_model(base_inputs.cuda())
-        logits_student = student_model(base_inputs.cuda())
         loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
                                             F.softmax(logits_teacher / T, dim=1))
-        loss_KD_TA+= T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-                                            F.softmax(logits_student / T, dim=1))
 
         base_loss = (1 - lambda_) * criterion(logits, base_targets) + lambda_ * loss_KD_TA
         base_loss.backward()
@@ -240,15 +237,15 @@ def search_func_modified(xloader,
         base_top5.update(base_prec5.item(), base_inputs.size(0))
         # update the architecture-weight
         a_optimizer.zero_grad()
-        _, logits = network(arch_inputs.cuda())
+        logits = network(arch_inputs.cuda())
+        if len(logits) == 2:
+            logits = logits[1]
+
 
         logits_teacher = teacher_model(arch_inputs.cuda())
-        logits_student = student_model(arch_inputs.cuda())
 
         loss_KD_TA = T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
                                             F.softmax(logits_teacher / T, dim=1))
-        # loss_KD_TA += T * T * nn.KLDivLoss()(F.log_softmax(logits / T, dim=1),
-        #                                      F.softmax(logits_student / T, dim=1))
         arch_loss = (1 - lambda_) * criterion(logits, arch_targets) + lambda_ * loss_KD_TA
         arch_loss.backward()
         a_optimizer.step()
@@ -636,15 +633,15 @@ def main(xargs):
             None,
         )
 
+    search_model = get_cell_based_tiny_net(model_config)
+    w_optimizer, w_scheduler, criterion = get_optim_scheduler(
+        search_model.get_weights(), config
+    )
     if TA == 'cs_lenet':
-        search_model, (w_optimizer, a_optimizer), w_scheduler = create_cnn_model(TA, train_data, config.epochs + config.warmup, None, use_cuda=1)
+        search_model, (w_optimizer, a_optimizer), w_scheduler = create_cnn_model(TA, dataset, config.epochs + config.warmup, None, use_cuda=1)
     else:
-        search_model = get_cell_based_tiny_net(model_config)
         logger.log("search-model :\n{:}".format(search_model))
         logger.log("model-config : {:}".format(model_config))
-        w_optimizer, w_scheduler, criterion = get_optim_scheduler(
-            search_model.get_weights(), config
-        )
         a_optimizer = torch.optim.Adam(
             search_model.get_alphas(),
             lr=xargs.arch_learning_rate,
@@ -715,7 +712,7 @@ def main(xargs):
     #     teacher_model = train_teacher(search_loader, teacher_model, criterion, teacher_optimizer, logger, total_epoch, xargs.teacher_model)
 
     # if TA:
-    student_model, student_optimizer, student_scheduler = create_cnn_model(student, train_data, total_epoch, student_checkpoint, use_cuda=1)
+    # student_model, student_optimizer, student_scheduler = create_cnn_model(student, train_data, total_epoch, student_checkpoint, use_cuda=1)
     # if student_checkpoint:
     # student_model = load_checkpoint(student_model, student_checkpoint)
     # checkpoint = torch.load(student_checkpoint)
@@ -727,17 +724,28 @@ def main(xargs):
     #     a_optimizer = None
 
     for epoch in range(start_epoch, total_epoch):
-        w_scheduler.update(epoch, 0.0)
+
+        if TA == 'GDAS':
+            w_scheduler.update(epoch, 0.0)
+            search_model.set_tau(
+                xargs.tau_max - (xargs.tau_max - xargs.tau_min) * epoch / (total_epoch - 1)
+            )
+        else:
+            w_scheduler.step(epoch)
+
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.val * (total_epoch - epoch), True)
         )
         epoch_str = "{:03d}-{:03d}".format(epoch, total_epoch)
-        search_model.set_tau(
-            xargs.tau_max - (xargs.tau_max - xargs.tau_min) * epoch / (total_epoch - 1)
-        )
+        # logger.log(
+        #     "\n[Search the {:}-th epoch] {:}, tau={:}, LR={:}".format(
+        #         epoch_str, need_time, search_model.get_tau(), min(w_scheduler.get_lr())
+        #     )
+        # )
+
         logger.log(
-            "\n[Search the {:}-th epoch] {:}, tau={:}, LR={:}".format(
-                epoch_str, need_time, search_model.get_tau(), min(w_scheduler.get_lr())
+            "\n[Search the {:}-th epoch] {:}, LR={:}".format(
+                epoch_str, need_time, min(w_scheduler.get_lr())
             )
         )
 
@@ -745,7 +753,6 @@ def main(xargs):
             search_loader,
             teacher_model,
             network,
-            student_model,
             criterion,
             w_scheduler,
             w_optimizer,
@@ -792,19 +799,7 @@ def main(xargs):
         #     student_accuracy['best'] = student_top1
 
 
-        info_dict = {
-            "user_w_loss": search_w_loss,
-            "user_w_top1": search_w_top1,
-            "user_w_top5": search_w_top5,
-            "user_a_loss": valid_a_loss,
-            "user_a_top1": valid_a_top1,
-            "user_a_top5": valid_a_top5,
-            "user_test_loss": search_w_loss,
-            "user_test_top1": search_w_loss,
-            "user_test_top5": search_w_loss,
-            "epoch": epoch
-        }
-        wandb.log(info_dict)
+
 
         TA_accuracy[epoch] = search_w_top1
         if search_w_top1 > TA_accuracy['best']:
@@ -822,6 +817,23 @@ def main(xargs):
         logger.log(
             "<<<--->>> The {:}-th epoch : {:}".format(epoch_str, genotypes[epoch])
         )
+
+        info_dict = {
+            "user_w_loss": search_w_loss,
+            "user_w_top1": search_w_top1,
+            "user_w_top5": search_w_top5,
+            "user_a_loss": valid_a_loss,
+            "user_a_top1": valid_a_top1,
+            "user_a_top5": valid_a_top5,
+            "user_test_loss": search_w_loss,
+            "user_test_top1": search_w_loss,
+            "user_test_top5": search_w_loss,
+            "first_conv_searched_layer": genotypes[epoch][0],
+            "second_conv_searched_layers": genotypes[epoch][1],
+            "epoch": epoch
+        }
+        wandb.log(info_dict)
+
         # save checkpoint
 
         save_path = save_checkpoint(
@@ -897,7 +909,7 @@ def main(xargs):
 
     logger.log('we used {:} as our Teacher with param size {:}'.format(xargs.teacher_model, count_parameters_in_MB(teacher_model)))
     logger.log('we used {:} as our TA with param size {:}'.format(TA, count_parameters_in_MB(network)))
-    logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
+    # logger.log('we used {:} as our Student with param size {:}'.format(xargs.student_model, count_parameters_in_MB(student_model)))
 
     logger.log('we used {:} online epochs out of total epochs of {:}'.format(xargs.epoch_online, total_epoch))
     logger.log('The best ACC of TA: {:.2f}%'.format(TA_accuracy['best']))
@@ -937,14 +949,18 @@ def main(xargs):
 
 if __name__ == "__main__":
 
-    wandb.init(project="TA_NAS", name='cifar_10_teacher_resnet110_ta_lenet10-10-inference')
+    dataset = 'cifar10'
+    teacher = 'resnet110'
+    teacher_path = '../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
+    TA = 'cs_lenet'
+    wandb.init(project="Channel Search For Knowledge Distillation", name='{}_teacher_{}_search'.format(dataset, teacher))
 
     parser = argparse.ArgumentParser("GDAS")
     parser.add_argument("--data_path", default='../../data', type=str, help="Path to dataset")
     parser.add_argument(
         "--dataset",
         type=str,
-        default= 'cifar10',
+        default= dataset,
         choices=["cifar10", "cifar100", "ImageNet16-120"],
         help="Choose between Cifar10/100 and ImageNet-16.",
     )
@@ -995,7 +1011,7 @@ if __name__ == "__main__":
         help="number of data loading workers (default: 2)",
     )
     parser.add_argument(
-        "--save_dir", default='./output/search-cell-dar/GDAS-cifar10-BN1', type=str, help="Folder to save checkpoints and log."
+        "--save_dir", default='./output/search-cell-dar/GDAS-{}-BN1'.format(dataset), type=str, help="Folder to save checkpoints and log."
     )
     parser.add_argument(
         "--arch_nas_dataset",
@@ -1004,10 +1020,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--print_freq", default=200, type=int, help="print frequency (default: 200)")
     parser.add_argument("--rand_seed", default= -1, type=int, help="manual seed")
-    parser.add_argument("--teacher_model", default="googlenet", type=str, help="type of teacher mode")
-    parser.add_argument("--TA", default='GDAS', type=str, help="type of TA")
+    parser.add_argument("--teacher_model", default=teacher, type=str, help="type of teacher mode")
+    parser.add_argument("--TA", default='cs_lenet', type=str, help="type of TA")
     parser.add_argument("--student_model", default='lenet', type=str, help="type of student mode")
-    parser.add_argument("--teacher_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-53336-bestNone_googlenet_95.10%_08-07,23.pth', type=str, help="teacher mode's check point")
+    parser.add_argument("--teacher_checkpoint", default=teacher_path, type=str, help="teacher mode's check point")
     parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-63079-best1_layers_None_lenet_70.15%_08-08,20.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")

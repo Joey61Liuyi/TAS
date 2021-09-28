@@ -450,6 +450,10 @@ class CS_LeNet(nn.Module):
         self.fc1 = nn.Linear(self.opts[-1] * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, class_num)
+        self.relu1 = nn.ReLU()
+        self.relu2 = nn.ReLU()
+        self.relu3 = nn.ReLU()
+        self.relu4 = nn.ReLU()
         self.C_parameters = nn.Parameter(torch.randn(2, len(opts)))
         self.tau = 10
 
@@ -516,7 +520,9 @@ class CS_LeNet(nn.Module):
         index = probs.max(-1, keepdim=True)[1]  # 找到probs中最大值的index
         one_h = torch.zeros_like(logits).scatter_(-1, index, 1.0)  # 根据probs每个元素的最大值的索引生成一个one-hot tensor
         hardwts = one_h - probs.detach() + probs
-        return self.channel_aggregation(hardwts[0]), self.channel_aggregation(hardwts[1])
+        layer1 = (self.channel_aggregation(hardwts[0]).view(-1,) == 1).sum()
+        layer2 = (self.channel_aggregation(hardwts[1]).view(-1,) == 1).sum()
+        return int(layer1), int(layer2)
 
     def show_alphas(self):
         with torch.no_grad():
