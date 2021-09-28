@@ -1076,17 +1076,18 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
 
 
     elif is_resnet(name) == 'lenet_wide':
-        first_channel = 10
-        second_channel = 10
+
+        tep = name.split('_')
+        first_channel = int(tep[-2])
+        second_channel = int(tep[-1])
         lenet_model = LeNet_wide(num_classes, first_channel, second_channel)
         model = lenet_model
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
     elif is_resnet(name) == "cs_lenet":
-
         if dataset == 'cifar10':
-            channel_range = list(range(5, 25, 2))
+            channel_range = list(range(4, 24, 2))
         elif dataset == 'cifar100':
             channel_range = list(range(20, 220, 20))
         model = CS_LeNet(channel_range, num_classes)
@@ -1094,10 +1095,13 @@ def create_cnn_model(name, dataset="cifar100", total_epochs = 160, model_path = 
         w_scheduler = torch.optim.lr_scheduler.MultiStepLR(w_optimizer,
                                                          [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
                                                          gamma=0.5)
-        a_optimizer = torch.optim.Adam(model.get_alphas(), lr=3e-4, betas=(0.5, 0.999), weight_decay=1e-3)
+        a_optimizer = torch.optim.Adam(model.get_alphas(), lr=1e-2, betas=(0.5, 0.999), weight_decay=1e-3)
+        a_scheduler = torch.optim.lr_scheduler.MultiStepLR(a_optimizer,
+                                                           [total_epochs * 3 / 8, total_epochs * 3 / 4, total_epochs],
+                                                           gamma=0.2)
 
         optimizer = (w_optimizer, a_optimizer)
-        scheduler = w_scheduler
+        scheduler = (w_scheduler, a_scheduler)
     elif is_resnet(name) == 'googlenet':
         googlenet_model = GoogLeNet(num_classes)
         model = googlenet_model

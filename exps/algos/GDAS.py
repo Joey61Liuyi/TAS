@@ -590,7 +590,7 @@ def main(xargs):
         valid_data,
         xargs.dataset,
         "../../configs/nas-benchmark",
-        config.batch_size,
+        xargs.batch_size,
         xargs.workers,
     )
     teacher_model = xargs.teacher_model
@@ -601,7 +601,7 @@ def main(xargs):
     epoch_online = xargs.epoch_online
     logger.log(
         "||||||| {:10s} ||||||| Search-Loader-Num={:}, batch size={:}".format(
-            xargs.dataset, len(search_loader), config.batch_size
+            xargs.dataset, len(search_loader), xargs.batch_size
         )
     )
     logger.log("||||||| {:10s} ||||||| Config={:}".format(xargs.dataset, config))
@@ -638,7 +638,7 @@ def main(xargs):
         search_model.get_weights(), config
     )
     if TA == 'cs_lenet':
-        search_model, (w_optimizer, a_optimizer), w_scheduler = create_cnn_model(TA, dataset, config.epochs + config.warmup, None, use_cuda=1)
+        search_model, (w_optimizer, a_optimizer), (w_scheduler, a_scheduler) = create_cnn_model(TA, dataset, config.epochs + config.warmup, None, use_cuda=1)
     else:
         logger.log("search-model :\n{:}".format(search_model))
         logger.log("model-config : {:}".format(model_config))
@@ -705,7 +705,7 @@ def main(xargs):
         config.epochs + config.warmup,
     )
 
-    teacher_model, teacher_optimizer, teacher_scheduler = create_cnn_model(teacher_model, train_data, total_epoch, teacher_checkpoint, use_cuda=1)
+    teacher_model, teacher_optimizer, teacher_scheduler = create_cnn_model(teacher_model, dataset, total_epoch, teacher_checkpoint, use_cuda=1)
     # if teacher_checkpoint:
     # teacher_model = load_checkpoint(teacher_model, teacher_checkpoint)
     # else:
@@ -732,6 +732,7 @@ def main(xargs):
             )
         else:
             w_scheduler.step(epoch)
+            a_scheduler.step(epoch)
 
         need_time = "Time Left: {:}".format(
             convert_secs2time(epoch_time.val * (total_epoch - epoch), True)
@@ -949,9 +950,15 @@ def main(xargs):
 
 if __name__ == "__main__":
 
-    dataset = 'cifar10'
-    teacher = 'resnet110'
-    teacher_path = '../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
+    dataset = 'cifar100'
+    if dataset == 'cifar10':
+        teacher = 'resnet110'
+        teacher_path = '../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
+        batch_size = 500
+    elif dataset == 'cifar100':
+        teacher = 'googlenet'
+        teacher_path = '../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/None_googlenet_75.77%_08-14,19best-seed-11721.pth'
+        batch_size = 100
     TA = 'cs_lenet'
     wandb.init(project="Channel Search For Knowledge Distillation", name='{}_teacher_{}_search'.format(dataset, teacher))
 
@@ -1027,6 +1034,7 @@ if __name__ == "__main__":
     parser.add_argument("--student_checkpoint", default='../output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-63079-best1_layers_None_lenet_70.15%_08-08,20.pth', type=str,
                         help="student mode's check point")
     parser.add_argument("--epoch_online", default=250, type=int, help="online training of TA and student")
+    parser.add_argument("--batch_size", default=batch_size, type=int, help="batch size")
     args = parser.parse_args()
     if args.rand_seed is None or args.rand_seed < 0:
         args.rand_seed = random.randint(1, 100000)

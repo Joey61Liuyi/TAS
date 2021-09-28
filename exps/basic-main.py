@@ -405,13 +405,11 @@ def main(args):
 
 if __name__ == "__main__":
 
-    wandb.init(project="TA_NAS", name='cifar_10_teacher_resnet110_ta_lenet10-10-inference')
     args = obtain_args()
     args.dataset = 'cifar10'
     args.data_path = '../data'
     args.teacher_model = 'resnet110'
     args.teacher_path = './output/nas-infer/cifar10-BS96-gdas_serached/checkpoint/seed-21045-best_resnet110_95.56%_07-05,22.pth'
-    args.student_model = 'lenet_wide'
     args.model_config = '../configs/archs/NAS-CIFAR-none.config'
     args.optim_config = '../configs/opts/NAS-CIFAR.config'
     args.extra_model_path = '../exps/algos/output/search-cell-dar/GDAS-cifar10-BN1/checkpoint/googlenet-lenet-seed-18699-basic.pth'
@@ -420,14 +418,18 @@ if __name__ == "__main__":
     args.procedure = 'KD'
     args.save_dir = './output/nas-infer/cifar10-BS96-gdas_serached'
     args.cutout_length = 16
-    args.batch_size = 48
-    args.rand_seed = 2551
+    args.batch_size = 600
+    args.rand_seed = -1
     args.workers = 4
     args.eval_frequency = 1
     args.print_freq = 500
     args.print_freq_eval = 1000
-    wandb.config.update(args)
-    main(args)
+
+    for channel in range(22,24,2):
+        wandb.init(project="TA_NAS", name='cifar_10_teacher_resnet110_TA_lenet{}_{}_inference'.format(channel, channel))
+        args.student_model = 'lenet_wide_{}_{}'.format(channel, channel)
+        wandb.config.update(args)
+        main(args)
 
 
 
